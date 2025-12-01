@@ -1,0 +1,385 @@
+import SwiftUI
+import SwiftData
+import Charts
+
+// MARK: - Enhanced Finance Tab
+struct EnhancedFinanceTab: View {
+    @Environment(\.modelContext) private var context
+    let userEmail: String
+    @Query private var transactions: [Transaction]
+    
+    init(userEmail: String) {
+        self.userEmail = userEmail
+        _transactions = Query(filter: #Predicate { $0.ownerEmail == userEmail }, sort: \Transaction.date, order: .reverse)
+    }
+    
+    @State private var showAdd = false
+    @State private var prefillAmount: Double = 0
+    @State private var prefillCategory: TransactionCategory = .other
+    @State private var prefillNote: String = ""
+    
+    // MARK: - Computed Properties
+    
+    var financeScore: Double {
+        ClarityScoreCalculator.calculateFinanceScore(transactions: transactions)
+    }
+    
+    var scoreInsight: String {
+        switch financeScore {
+        case 80...: return "Financial master!"
+        case 60..<80: return "Great awareness"
+        case 40..<60: return "Building habits"
+        default: return "Start tracking"
+        }
+    }
+    
+    var weeklySpending: Double {
+        let weekStart = Calendar.current.date(byAdding: .day, value: -6, to: Date())!
+        return transactions.filter { $0.date >= weekStart }.reduce(0) { $0 + $1.amount }
+    }
+    
+    var spendingByCategory: [(category: TransactionCategory, amount: Double)] {
+        let weekStart = Calendar.current.date(byAdding: .day, value: -6, to: Date())!
+        let weekTransactions = transactions.filter { $0.date >= weekStart }
+        let grouped = Dictionary(grouping: weekTransactions) { $0.category }
+        return grouped.map { (category: $0.key, amount: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.amount > $1.amount }
+    }
+    
+    // MARK: - Body
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.clarityBackground.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 32) {
+                        // Header & Score
+                        HStack(spacing: 20) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(Date(), format: .dateTime.weekday(.wide).day().month())
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                Text("Finance")
+                                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary)
+                                
+                                Text(scoreInsight)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.clarityPurple)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.clarityPurple.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                            
+                            Spacer()
+                            
+                            FinanceScoreRing(score: financeScore)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 10)
+                        
+                        // Weekly Awareness (Primary Focus)
+                        WeeklyAwarenessCard(
+                            totalSpent: weeklySpending,
+                            transactionCount: transactions.filter {
+                                $0.date >= Calendar.current.date(byAdding: .day, value: -6, to: Date())!
+                            }.count
+                        )
+                        .padding(.horizontal)
+                        
+                        // Category Breakdown
+                        if !spendingByCategory.isEmpty {
+                            CategoryBreakdownCard(categoryData: spendingByCategory)
+                                .padding(.horizontal)
+                        }
+                        
+                        if transactions.isEmpty {
+                            SuggestedTransactionsView(
+                                showAdd: $showAdd,
+                                prefillAmount: $prefillAmount,
+                                prefillCategory: $prefillCategory,
+                                prefillNote: $prefillNote
+                            )
+                            .padding(.horizontal)
+                        } else {
+                            QuickAddTransactionView(
+                                showAdd: $showAdd,
+                                prefillAmount: $prefillAmount,
+                                prefillCategory: $prefillCategory,
+                                prefillNote: $prefillNote
+                            )
+                            .padding(.horizontal)
+                            
+                            // Recent Transactions
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Recent Activity")
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                                
+                                ForEach(transactions.prefix(10)) { transaction in
+                                    EnhancedTransactionRow(transaction: transaction)
+                                        .padding(.horizontal)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                context.delete(transaction)
+                                                try? context.save()
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                        }
+                        
+                        Spacer(minLength: 80)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom)
+                }
+            }
+            .navigationTitle("")
+            .toolbar(.hidden)
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    showAdd = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(LinearGradient.clarityPrimary)
+                        .clipShape(Circle())
+                        .shadow(color: Color.clarityPurple.opacity(0.4), radius: 10, x: 0, y: 5)
+                }
+                .padding()
+            }
+            .sheet(isPresented: $showAdd) {
+                AddTransactionSheet(
+                    userEmail: userEmail,
+                    prefillAmount: prefillAmount,
+                    prefillCategory: prefillCategory,
+                    prefillNote: prefillNote
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Subviews
+
+struct FinanceScoreRing: View {
+    let score: Double
+    
+    var contribution: Int {
+        Int(score * ClarityScoreCalculator.financeWeight)
+    }
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(Color.clarityCard, lineWidth: 8)
+                
+                Circle()
+                    .trim(from: 0, to: score / 100)
+                    .stroke(
+                        LinearGradient(colors: [.clarityPurple, .clarityBlue], startPoint: .top, endPoint: .bottom),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 1.0, dampingFraction: 0.8), value: score)
+                
+                VStack(spacing: 0) {
+                    Text("\(Int(score))")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                    Text("Score")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                }
+            }
+            .frame(width: 80, height: 80)
+            
+            Text("+\(contribution) pts")
+                .font(.caption2.bold())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.clarityCard)
+                .clipShape(Capsule())
+        }
+    }
+}
+
+struct WeeklyAwarenessCard: View {
+    let totalSpent: Double
+    let transactionCount: Int
+    
+    var awarenessPercentage: Double {
+        min(1.0, Double(transactionCount) / 49.0)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Weekly Awareness")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("\(transactionCount) transactions tracked")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("$\(totalSpent, specifier: "%.2f")")
+                        .font(.title3.bold())
+                        .foregroundStyle(Color.clarityPurple)
+                    Text("Total")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.clarityPurple.opacity(0.1))
+                        .frame(height: 12)
+                    
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(LinearGradient(colors: [.clarityPurple, .clarityBlue], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: geo.size.width * awarenessPercentage, height: 12)
+                }
+            }
+            .frame(height: 12)
+            
+            Text("\(Int(awarenessPercentage * 100))% awareness goal")
+                .font(.caption.bold())
+                .foregroundStyle(Color.clarityPurple)
+        }
+        .padding(20)
+        .background(Color.clarityCard)
+        .cornerRadius(20)
+        .shadow(color: Color.clarityPurple.opacity(0.1), radius: 10, x: 0, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.clarityPurple.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct CategoryBreakdownCard: View {
+    let categoryData: [(category: TransactionCategory, amount: Double)]
+    
+    var totalSpending: Double {
+        categoryData.reduce(0) { $0 + $1.amount }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Spending by Category")
+                .font(.headline)
+            
+            ForEach(categoryData.prefix(5), id: \.category) { item in
+                HStack {
+                    Circle()
+                        .fill(colorForCategory(item.category))
+                        .frame(width: 12, height: 12)
+                    
+                    Text(item.category.rawValue.capitalized)
+                        .font(.subheadline)
+                    
+                    Spacer()
+                    
+                    Text("$\(item.amount, specifier: "%.0f")")
+                        .font(.subheadline.bold())
+                    
+                    Text("(\(Int((item.amount / totalSpending) * 100))%)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(colorForCategory(item.category).gradient)
+                        .frame(width: geo.size.width * (item.amount / totalSpending), height: 6)
+                }
+                .frame(height: 6)
+            }
+        }
+        .padding()
+        .background(Color.clarityCard)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+    }
+    
+    private func colorForCategory(_ category: TransactionCategory) -> Color {
+        switch category {
+        case .food: return .clarityOrange
+        case .shopping: return .clarityPink
+        case .bills: return .clarityPurple
+        case .transport: return .clarityBlue
+        case .entertainment: return .clarityTeal
+        case .other: return .secondary
+        }
+    }
+}
+
+struct EnhancedTransactionRow: View {
+    let transaction: Transaction
+    @State private var showEdit = false
+    
+    var categoryIcon: String {
+        switch transaction.category {
+        case .food: return "🍔"
+        case .shopping: return "🛍️"
+        case .bills: return "💡"
+        case .transport: return "🚗"
+        case .entertainment: return "🎬"
+        case .other: return "💰"
+        }
+    }
+    
+    var body: some View {
+        Button(action: { showEdit = true }) {
+            HStack(spacing: 12) {
+                Text(categoryIcon)
+                    .font(.system(size: 32))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(transaction.note ?? transaction.category.rawValue.capitalized)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                    
+                    Text(transaction.date, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Text("$\(transaction.amount, specifier: "%.2f")")
+                    .font(.headline)
+                    .foregroundStyle(Color.clarityOrange)
+            }
+            .padding()
+            .background(Color.clarityCard)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.03), radius: 5, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showEdit) {
+            EditTransactionSheet(transaction: transaction)
+        }
+    }
+}

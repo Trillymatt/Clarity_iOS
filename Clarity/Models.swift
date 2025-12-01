@@ -23,6 +23,7 @@ enum TransactionCategory: String, Codable, CaseIterable, Identifiable {
 @Model
 final class TaskItem {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var title: String
     var notes: String?
     var dueDate: Date?
@@ -30,14 +31,17 @@ final class TaskItem {
     var isToday: Bool
     var categoryRaw: String
     var estimatedMinutes: Int?
+    var completedDate: Date?
+    var notifyOnDueDate: Bool
     
     var category: TaskCategory {
         get { TaskCategory(rawValue: categoryRaw) ?? .other }
         set { categoryRaw = newValue.rawValue }
     }
     
-    init(id: UUID = UUID(), title: String, notes: String? = nil, dueDate: Date? = nil, isCompleted: Bool = false, isToday: Bool = false, category: TaskCategory = .other, estimatedMinutes: Int? = nil) {
+    init(id: UUID = UUID(), ownerEmail: String = "", title: String, notes: String? = nil, dueDate: Date? = nil, isCompleted: Bool = false, isToday: Bool = false, category: TaskCategory = .other, estimatedMinutes: Int? = nil, completedDate: Date? = nil, notifyOnDueDate: Bool = false) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.title = title
         self.notes = notes
         self.dueDate = dueDate
@@ -45,38 +49,50 @@ final class TaskItem {
         self.isToday = isToday
         self.categoryRaw = category.rawValue
         self.estimatedMinutes = estimatedMinutes
+        self.completedDate = completedDate
+        self.notifyOnDueDate = notifyOnDueDate
     }
 }
 
 @Model
 final class Habit {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var name: String
     var iconName: String?
     var goalPerDay: Int?
     var daysOfWeek: [Int]
     var isActive: Bool
+    var displayOrder: Int
+    var notificationsEnabled: Bool
+    var reminderTime: Date?
     
-    init(id: UUID = UUID(), name: String, iconName: String? = nil, goalPerDay: Int? = nil, daysOfWeek: [Int] = [], isActive: Bool = true) {
+    init(id: UUID = UUID(), ownerEmail: String = "", name: String, iconName: String? = nil, goalPerDay: Int? = nil, daysOfWeek: [Int] = [], isActive: Bool = true, displayOrder: Int = 0, notificationsEnabled: Bool = false, reminderTime: Date? = nil) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.name = name
         self.iconName = iconName
         self.goalPerDay = goalPerDay
         self.daysOfWeek = daysOfWeek
         self.isActive = isActive
+        self.displayOrder = displayOrder
+        self.notificationsEnabled = notificationsEnabled
+        self.reminderTime = reminderTime
     }
 }
 
 @Model
 final class HabitCheckin {
     @Attribute(.unique) var id: UUID
-    @Relationship var habit: Habit
+    var ownerEmail: String
+    @Relationship(deleteRule: .nullify) var habit: Habit?
     var date: Date
     var value: Int
     var isCompleted: Bool
     
-    init(id: UUID = UUID(), habit: Habit, date: Date, value: Int = 0, isCompleted: Bool = false) {
+    init(id: UUID = UUID(), ownerEmail: String = "", habit: Habit, date: Date, value: Int = 0, isCompleted: Bool = false) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.habit = habit
         self.date = date
         self.value = value
@@ -87,14 +103,16 @@ final class HabitCheckin {
 @Model
 final class JournalEntry {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var date: Date
     var moodScore: Int
     var stressLevel: Int?
     var text: String
     var tags: [String]
     
-    init(id: UUID = UUID(), date: Date = Date(), moodScore: Int = 3, stressLevel: Int? = nil, text: String = "", tags: [String] = []) {
+    init(id: UUID = UUID(), ownerEmail: String = "", date: Date = Date(), moodScore: Int = 3, stressLevel: Int? = nil, text: String = "", tags: [String] = []) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.date = date
         self.moodScore = moodScore
         self.stressLevel = stressLevel
@@ -106,10 +124,11 @@ final class JournalEntry {
 @Model
 final class LifeMoment {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var date: Date
     var title: String
     var note: String?
-    var moodScore: Int?
+    var moodScore: Double?
     var typeRaw: String
     
     var type: MomentType {
@@ -117,8 +136,9 @@ final class LifeMoment {
         set { typeRaw = newValue.rawValue }
     }
     
-    init(id: UUID = UUID(), date: Date = Date(), title: String, note: String? = nil, moodScore: Int? = nil, type: MomentType = .other) {
+    init(id: UUID = UUID(), ownerEmail: String = "", date: Date = Date(), title: String, note: String? = nil, moodScore: Double? = nil, type: MomentType = .other) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.date = date
         self.title = title
         self.note = note
@@ -130,6 +150,7 @@ final class LifeMoment {
 @Model
 final class Transaction {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var amount: Double
     var date: Date
     var categoryRaw: String
@@ -141,8 +162,9 @@ final class Transaction {
         set { categoryRaw = newValue.rawValue }
     }
     
-    init(id: UUID = UUID(), amount: Double, date: Date = Date(), category: TransactionCategory = .other, note: String? = nil, isRecurring: Bool = false) {
+    init(id: UUID = UUID(), ownerEmail: String = "", amount: Double, date: Date = Date(), category: TransactionCategory = .other, note: String? = nil, isRecurring: Bool = false) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.amount = amount
         self.date = date
         self.categoryRaw = category.rawValue
@@ -154,13 +176,15 @@ final class Transaction {
 @Model
 final class FinancialGoal {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var title: String
     var targetAmount: Double
     var currentAmount: Double
     var dueDate: Date?
     
-    init(id: UUID = UUID(), title: String, targetAmount: Double, currentAmount: Double = 0, dueDate: Date? = nil) {
+    init(id: UUID = UUID(), ownerEmail: String = "", title: String, targetAmount: Double, currentAmount: Double = 0, dueDate: Date? = nil) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.title = title
         self.targetAmount = targetAmount
         self.currentAmount = currentAmount
@@ -171,6 +195,7 @@ final class FinancialGoal {
 @Model
 final class LifeAreaScore {
     @Attribute(.unique) var id: UUID
+    var ownerEmail: String
     var date: Date
     var health: Int
     var mind: Int
@@ -181,8 +206,9 @@ final class LifeAreaScore {
     var growth: Int
     var lifestyle: Int
     
-    init(id: UUID = UUID(), date: Date = Date(), health: Int = 5, mind: Int = 5, relationships: Int = 5, career: Int = 5, finance: Int = 5, spiritual: Int = 5, growth: Int = 5, lifestyle: Int = 5) {
+    init(id: UUID = UUID(), ownerEmail: String = "", date: Date = Date(), health: Int = 5, mind: Int = 5, relationships: Int = 5, career: Int = 5, finance: Int = 5, spiritual: Int = 5, growth: Int = 5, lifestyle: Int = 5) {
         self.id = id
+        self.ownerEmail = ownerEmail
         self.date = date
         self.health = health
         self.mind = mind
