@@ -31,7 +31,7 @@ struct UserContext {
 class AIService {
     static let shared = AIService()
     
-    private var apiKey: String = ""
+    private var apiKey: String = Secrets.openAIKey
     private let openAIURL = "https://api.openai.com/v1/chat/completions"
     
     func setApiKey(_ key: String) {
