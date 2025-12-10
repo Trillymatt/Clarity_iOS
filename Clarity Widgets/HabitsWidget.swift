@@ -349,27 +349,52 @@ struct HabitsWidgetEntryView: View {
     var entry: ClarityEntry
     
     var body: some View {
-        Group {
-            switch family {
-            case .systemSmall:
-                SmallHabitsWidgetView(entry: entry)
-            case .systemMedium:
-                MediumHabitsWidgetView(entry: entry)
-            case .systemLarge:
-                LargeHabitsWidgetView(entry: entry)
-            default:
-                SmallHabitsWidgetView(entry: entry)
+        if #available(iOS 17.0, *) {
+            Group {
+                switch family {
+                case .systemSmall:
+                    SmallHabitsWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumHabitsWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeHabitsWidgetView(entry: entry)
+                default:
+                    SmallHabitsWidgetView(entry: entry)
+                }
             }
-        }
-        .containerBackground(for: .widget) {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.9, green: 0.5, blue: 0.7),
-                    Color(red: 0.7, green: 0.3, blue: 0.9)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            .containerBackground(for: .widget) {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.9, green: 0.5, blue: 0.7),
+                        Color(red: 0.7, green: 0.3, blue: 0.9)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.9, green: 0.5, blue: 0.7),
+                        Color(red: 0.7, green: 0.3, blue: 0.9)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                switch family {
+                case .systemSmall:
+                    SmallHabitsWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumHabitsWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeHabitsWidgetView(entry: entry)
+                default:
+                    SmallHabitsWidgetView(entry: entry)
+                }
+            }
         }
     }
 }

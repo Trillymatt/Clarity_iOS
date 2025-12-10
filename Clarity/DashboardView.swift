@@ -284,6 +284,7 @@ struct TodaysFocusSection: View {
 // MARK: - Habits Preview Section
 struct HabitsPreviewSection: View {
     let habits: [Habit]
+    @Query private var habitCheckins: [HabitCheckin]
     
     var activeHabits: [Habit] {
         habits.filter { $0.isActive }
@@ -316,7 +317,7 @@ struct HabitsPreviewSection: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(activeHabits.prefix(4)) { habit in
-                            CompactHabitCard(habit: habit)
+                            CompactHabitCard(habit: habit, checkins: habitCheckins)
                         }
                     }
                     .padding(.horizontal)
@@ -329,6 +330,7 @@ struct HabitsPreviewSection: View {
 // MARK: - Compact Habit Card
 struct CompactHabitCard: View {
     let habit: Habit
+    let checkins: [HabitCheckin]
     
     var habitIcon: String {
         // Map common icon names to emojis, or use default star
@@ -336,7 +338,7 @@ struct CompactHabitCard: View {
             switch iconName {
             case "figure.run", "figure.walk": return "🏃‍♂️"
             case "book.fill", "book": return "📚"
-            case "waterbottle.fill", "waterbottle": return "💧"
+            case "waterbottle.fill", "waterbottle", "drop.fill": return "💧"
             case "figure.mind.and.body": return "🧘‍♀️"
             case "bed.double.fill", "bed": return "😴"
             case "fork.knife": return "🍽️"
@@ -344,6 +346,8 @@ struct CompactHabitCard: View {
             case "brain.head.profile": return "🧠"
             case "heart.fill", "heart": return "❤️"
             case "sun.max.fill", "sun": return "☀️"
+            case "flame.fill": return "🔥"
+            case "leaf.fill": return "🌿"
             default: return "⭐"
             }
         }
@@ -351,8 +355,41 @@ struct CompactHabitCard: View {
     }
     
     var currentStreak: Int {
-        // Simplified - would need actual streak calculation
-        habit.isActive ? 3 : 0
+        let calendar = Calendar.current
+        let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
+        
+        guard !habitCheckins.isEmpty else { return 0 }
+        
+        // Get all unique days with check-ins, sorted descending
+        let checkinDays = Set(habitCheckins.map { calendar.startOfDay(for: $0.date) })
+            .sorted(by: >)
+        
+        guard let mostRecentDay = checkinDays.first else { return 0 }
+        
+        let today = calendar.startOfDay(for: Date())
+        
+        // If most recent check-in isn't today or yesterday, streak is broken
+        let daysSinceLastCheckin = calendar.dateComponents([.day], from: mostRecentDay, to: today).day ?? 0
+        if daysSinceLastCheckin > 1 {
+            return 0
+        }
+        
+        // Count consecutive days backwards
+        var streak = 0
+        var currentDay = mostRecentDay
+        
+        for day in checkinDays {
+            if day == currentDay {
+                streak += 1
+                // Move to previous day
+                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay)!
+            } else {
+                // Gap in streak
+                break
+            }
+        }
+        
+        return streak
     }
     
     var body: some View {

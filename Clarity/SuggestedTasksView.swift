@@ -107,7 +107,6 @@ struct SuggestedTasksView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -123,8 +122,9 @@ struct SuggestedTasksView: View {
                         )
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
             }
+            .padding(.horizontal, -12) // Break out of parent padding
         }
         .padding(.vertical)
     }

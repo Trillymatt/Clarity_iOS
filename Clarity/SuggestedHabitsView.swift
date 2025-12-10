@@ -4,112 +4,83 @@ import SwiftData
 struct SuggestedHabitsView: View {
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
+    @Query private var habits: [Habit]
     
     let userEmail: String
     
     @State private var generatingHabit: String? = nil
     
-    // Focus area mapped suggestions
-    let allSuggestions: [String: [(String, String, String)]] = [
-        "Health": [
-            ("Drink Water", "💧", "drop.fill"),
-            ("Morning Exercise", "🏃", "figure.run"),
-            ("Healthy Sleep", "😴", "bed.double.fill"),
-            ("Stretch", "🤸", "figure.flexibility"),
-        ],
-        "Mindfulness": [
-            ("Meditation", "🧘", "sparkles"),
-            ("Gratitude Journal", "📝", "heart.text.square.fill"),
-            ("Deep Breathing", "🌬️", "wind"),
-            ("Mindful Walking", "🚶", "figure.walk"),
-        ],
-        "Learning": [
-            ("Read Daily", "📚", "book.fill"),
-            ("Learn Something New", "🎓", "graduationcap.fill"),
-            ("Practice Skill", "🎯", "target"),
-            ("Take Course", "💻", "laptopcomputer"),
-        ],
-        "Productivity": [
-            ("Plan Tomorrow", "📋", "list.bullet"),
-            ("Time Block", "⏰", "clock.fill"),
-            ("Focus Session", "🎯", "scope"),
-            ("Review Goals", "✅", "checkmark.circle.fill"),
-        ]
-    ]
-    
-    var userProfile: UserProfile? {
-        profiles.first { $0.email == userEmail }
+    init(userEmail: String) {
+        self.userEmail = userEmail
+        _profiles = Query(filter: #Predicate<UserProfile> { $0.email == userEmail })
+        _habits = Query(filter: #Predicate<Habit> { $0.ownerEmail == userEmail && $0.isActive == true })
     }
     
-    var suggestions: [(String, String, String)] {
-        guard let profile = userProfile else {
-            // Fallback to generic suggestions
-            return [
-                ("Drink Water", "💧", "drop.fill"),
-                ("Morning Exercise", "🏃", "figure.run"),
-                ("Read Daily", "📚", "book.fill"),
-                ("Meditation", "🧘", "sparkles"),
-                ("Gratitude Journal", "📝", "heart.text.square.fill"),
-                ("Healthy Sleep", "😴", "bed.double.fill"),
-            ]
+    var userProfile: UserProfile? {
+        profiles.first
+    }
+    
+    /// Build context from user's existing data
+    var suggestionContext: SuggestionEngine.UserContextData {
+        var context = SuggestionEngine.UserContextData()
+        
+        // Existing habits
+        context.existingHabits = habits.map { $0.name }
+        
+        // Categorize existing habits
+        let engine = SuggestionEngine.shared
+        context.habitCategories = Set(habits.map { engine.categorizeHabit($0.name) })
+        
+        // Focus areas from profile
+        if let profile = userProfile {
+            context.focusAreas = profile.focusAreas
         }
         
-        var personalizedSuggestions: [(String, String, String)] = []
-        
-        // 1. Add desired habit first if provided
-        if let desiredHabit = profile.desiredHabit, !desiredHabit.isEmpty {
-            personalizedSuggestions.append((desiredHabit, "⭐", "star.fill"))
-        }
-        
-        // 2. Filter by focus areas
-        if !profile.focusAreas.isEmpty {
-            for area in profile.focusAreas {
-                if let areaSuggestions = allSuggestions[area] {
-                    personalizedSuggestions.append(contentsOf: areaSuggestions)
-                }
-            }
-        } else {
-            // If no focus areas, show popular mix
-            personalizedSuggestions.append(contentsOf: allSuggestions["Health"] ?? [])
-            personalizedSuggestions.append(contentsOf: allSuggestions["Mindfulness"] ?? [])
-        }
-        
-        // Remove duplicates and limit to 8
-        var seen = Set<String>()
-        return personalizedSuggestions.filter { suggestion in
-            let isNew = !seen.contains(suggestion.0)
-            seen.insert(suggestion.0)
-            return isNew
-        }.prefix(8).map { $0 }
+        return context
+    }
+    
+    /// Dynamic suggestions from engine
+    var suggestions: [SuggestionEngine.HabitSuggestion] {
+        SuggestionEngine.shared.generateHabitSuggestions(context: suggestionContext)
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("No habits yet")
-                    .font(.title2.bold())
-                Text("Here are some suggestions to build better habits")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if habits.isEmpty {
+                    Text("No habits yet")
+                        .font(.title2.bold())
+                    Text("Here are some suggestions to build better habits")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Expand Your Routine")
+                        .font(.title2.bold())
+                    Text("Try something new based on your goals")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(suggestions, id: \.0) { suggestion in
+                    ForEach(suggestions) { suggestion in
                         SuggestedHabitCard(
-                            title: suggestion.0,
-                            emoji: suggestion.1,
-                            icon: suggestion.2,
-                            isGenerating: generatingHabit == suggestion.0,
+                            title: suggestion.name,
+                            emoji: suggestion.emoji,
+                            icon: suggestion.icon,
+                            reason: suggestion.reason,
+                            isGenerating: generatingHabit == suggestion.name,
                             onAdd: {
-                                addHabitWithAI(title: suggestion.0)
+                                addHabitWithAI(title: suggestion.name)
                             }
                         )
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
             }
+            .padding(.horizontal, -12) // Break out of parent padding
         }
         .padding(.vertical)
     }
@@ -170,12 +141,22 @@ struct SuggestedHabitCard: View {
     let title: String
     let emoji: String
     let icon: String
+    let reason: String?
     let isGenerating: Bool
     let onAdd: () -> Void
     
+    init(title: String, emoji: String, icon: String, reason: String? = nil, isGenerating: Bool, onAdd: @escaping () -> Void) {
+        self.title = title
+        self.emoji = emoji
+        self.icon = icon
+        self.reason = reason
+        self.isGenerating = isGenerating
+        self.onAdd = onAdd
+    }
+    
     var body: some View {
         Button(action: onAdd) {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 if isGenerating {
                     ProgressView()
                         .font(.system(size: 32))
@@ -184,12 +165,21 @@ struct SuggestedHabitCard: View {
                         .font(.system(size: 32))
                 }
                 
-                Text(title)
-                    .font(.subheadline.bold())
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(isGenerating ? .secondary : .primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(isGenerating ? .secondary : .primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    if let reason = reason, !isGenerating {
+                        Text(reason)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
                 
                 if isGenerating {
                     Text("Generating...")
@@ -201,7 +191,7 @@ struct SuggestedHabitCard: View {
                         .foregroundStyle(Color.clarityPurple)
                 }
             }
-            .frame(width: 120, height: 140)
+            .frame(width: 120, height: 150)
             .background(Color.clarityCard)
             .cornerRadius(16)
             .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
@@ -210,3 +200,4 @@ struct SuggestedHabitCard: View {
         .disabled(isGenerating)
     }
 }
+

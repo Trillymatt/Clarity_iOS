@@ -79,9 +79,64 @@ struct EnhancedHabitsTab: View {
                 isCompleted: currentCount + 1 >= goal
             )
             context.insert(checkin)
+            
+            // Check for streak celebration (only when completing the habit)
+            if currentCount + 1 >= goal {
+                let streak = calculateStreak(for: habit, includingToday: true)
+                
+                // Send streak celebration if it's a milestone
+                Task { @MainActor in
+                    NotificationManager.shared.sendStreakCelebration(habitName: habit.name, streakDays: streak)
+                }
+            }
         }
         
         try? context.save()
+        WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+    }
+    
+    /// Calculate the current streak for a habit
+    private func calculateStreak(for habit: Habit, includingToday: Bool = false) -> Int {
+        let calendar = Calendar.current
+        let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
+        
+        guard !habitCheckins.isEmpty else { return includingToday ? 1 : 0 }
+        
+        // Get all unique days with check-ins, sorted descending
+        var checkinDays = Set(habitCheckins.map { calendar.startOfDay(for: $0.date) })
+        
+        // If including today (for celebration), add today
+        if includingToday {
+            checkinDays.insert(calendar.startOfDay(for: Date()))
+        }
+        
+        let sortedDays = checkinDays.sorted(by: >)
+        guard let mostRecentDay = sortedDays.first else { return includingToday ? 1 : 0 }
+        
+        let today = calendar.startOfDay(for: Date())
+        
+        // If most recent check-in isn't today or yesterday, streak is broken
+        let daysSinceLastCheckin = calendar.dateComponents([.day], from: mostRecentDay, to: today).day ?? 0
+        if daysSinceLastCheckin > 1 {
+            return includingToday ? 1 : 0
+        }
+        
+        // Count consecutive days backwards
+        var streak = 0
+        var currentDay = mostRecentDay
+        
+        for day in sortedDays {
+            if day == currentDay {
+                streak += 1
+                // Move to previous day
+                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay)!
+            } else {
+                // Gap in streak
+                break
+            }
+        }
+        
+        return streak
     }
     
     private func moveHabit(from source: IndexSet, to destination: Int) {
@@ -130,20 +185,14 @@ struct EnhancedHabitsTab: View {
                             
                             HabitScoreRing(score: habitScore)
                         }
-                        .padding(.horizontal)
                         .padding(.top, 10)
                         
-                        if activeHabits.isEmpty {
-                            SuggestedHabitsView(userEmail: userEmail)
-                                .padding(.horizontal)
-                        } else {
-                            // Primary Habit Card
+                        // Primary Habit Card
                             if let primary = primaryHabit {
                                 VStack(alignment: .leading, spacing: 16) {
                                     Label("Primary Habit", systemImage: "flame.fill")
                                         .font(.headline)
                                         .foregroundStyle(Color.clarityOrange)
-                                        .padding(.horizontal)
                                     
                                     PrimaryHabitCard(
                                         habit: primary,
@@ -153,7 +202,6 @@ struct EnhancedHabitsTab: View {
                                         userEmail: userEmail
                                     )
                                     .id(primary.id)
-                                    .padding(.horizontal)
                                 }
                             }
                             
@@ -163,7 +211,6 @@ struct EnhancedHabitsTab: View {
                                     Text("Your Routine")
                                         .font(.headline)
                                         .foregroundStyle(.secondary)
-                                        .padding(.horizontal)
                                     
                                     ForEach(otherHabits) { habit in
                                         EnhancedHabitRow(
@@ -174,7 +221,6 @@ struct EnhancedHabitsTab: View {
                                             userEmail: userEmail
                                         )
                                         .id(habit.id)
-                                        .padding(.horizontal)
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                             Button(role: .destructive) {
                                                 withAnimation {
@@ -196,7 +242,9 @@ struct EnhancedHabitsTab: View {
                                     .onMove(perform: moveHabit)
                                 }
                             }
-                        }
+                        
+                        // Suggestions (always show)
+                        SuggestedHabitsView(userEmail: userEmail)
                         
                         // Inactive Habits
                         let inactiveHabits = habits.filter { !$0.isActive }
@@ -205,7 +253,6 @@ struct EnhancedHabitsTab: View {
                                 Text("Inactive")
                                     .font(.headline)
                                     .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
                                 
                                 ForEach(inactiveHabits) { habit in
                                     EnhancedHabitRow(
@@ -215,7 +262,6 @@ struct EnhancedHabitsTab: View {
                                         onCheckIn: { }, // No-op
                                         userEmail: userEmail
                                     )
-                                    .padding(.horizontal)
                                     .opacity(0.5)
                                 }
                             }
@@ -224,7 +270,7 @@ struct EnhancedHabitsTab: View {
                         
                         Spacer(minLength: 80)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
                     .padding(.bottom)
                 }
             }

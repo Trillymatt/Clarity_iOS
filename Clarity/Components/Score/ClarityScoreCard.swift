@@ -140,108 +140,241 @@ struct TrendIndicator: View {
 struct ScoreBreakdownView: View {
     @Environment(\.dismiss) private var dismiss
     let score: ClarityScore
+    @State private var animateChart = false
     
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    // Overall score
-                    VStack(spacing: 12) {
-                        Text("\(Int(score.totalScore))")
-                            .font(.clarityScoreLarge)
-                            .foregroundStyle(LinearGradient.clarityPrimary)
-                        
-                        Text("Clarity Score")
-                            .font(.clarityTitle)
+                VStack(spacing: 32) {
+                    // Hero Section
+                    VStack(spacing: 8) {
+                        Text(score.stateEmoji)
+                            .font(.system(size: 64))
+                            .shadow(color: .clarityPurple.opacity(0.5), radius: 20, x: 0, y: 10)
                         
                         Text(score.stateDescription)
-                            .font(.claritySubtitle)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                    
-                    // Component breakdown
-                    VStack(spacing: 16) {
-                        Text("Score Breakdown")
-                            .font(.clarityTitle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        ScoreComponentRow(title: "Tasks", score: score.taskScore, weight: 30, color: .clarityBlue)
-                        ScoreComponentRow(title: "Habits", score: score.habitScore, weight: 25, color: .clarityOrange)
-                        ScoreComponentRow(title: "Mood", score: score.moodScore, weight: 20, color: .clarityPink)
-                        ScoreComponentRow(title: "Moments", score: score.momentScore, weight: 15, color: .clarityTeal)
-                        ScoreComponentRow(title: "Finance", score: score.financeScore, weight: 10, color: .clarityPurple)
-                    }
-                    .padding()
-                    .background(Color.clarityCard)
-                    .cornerRadius(16)
-                    
-                    // Explanation
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("How it works")
-                            .font(.clarityTitle)
-                        
-                        Text("Your Clarity Score reflects how aligned your life is with your intentions. It's calculated from your weekly activity across five key areas.")
-                            .font(.clarityBody)
-                            .foregroundStyle(.secondary)
-                        
-                        Text("Higher scores mean greater awareness and consistency - not perfection.")
-                            .font(.clarityCallout)
+                            .font(.system(size: 32, weight: .bold))
                             .foregroundStyle(.primary)
+                        
+                        Text("\(Int(score.totalScore)) / 100")
+                            .font(.title3.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(20)
+                    }
+                    .padding(.top, 20)
+                    
+                    // Radar Chart Visualization
+                    ZStack {
+                        // Glow effect
+                        Circle()
+                            .fill(Color.clarityPurple.opacity(0.2))
+                            .blur(radius: 40)
+                            .frame(width: 250, height: 250)
+                        
+                        RadarChart(
+                            data: [
+                                score.taskScore,
+                                score.habitScore,
+                                score.moodScore,
+                                score.momentScore,
+                                score.financeScore
+                            ],
+                            labels: ["Tasks", "Habits", "Mood", "Moments", "Finance"],
+                            colors: [.clarityBlue, .clarityOrange, .clarityPink, .clarityTeal, .clarityPurple]
+                        )
+                        .frame(width: 300, height: 300)
+                    }
+                    .padding(.vertical, 20)
+                    
+                    // Score Details Grid
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Breakdown")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            ScoreDetailCard(
+                                title: "Tasks",
+                                score: score.taskScore,
+                                icon: "checkmark.circle.fill",
+                                color: .clarityBlue
+                            )
+                            
+                            ScoreDetailCard(
+                                title: "Habits",
+                                score: score.habitScore,
+                                icon: "repeat.circle.fill",
+                                color: .clarityOrange
+                            )
+                            
+                            ScoreDetailCard(
+                                title: "Mood",
+                                score: score.moodScore,
+                                icon: "face.smiling.fill",
+                                color: .clarityPink
+                            )
+                            
+                            ScoreDetailCard(
+                                title: "Moments",
+                                score: score.momentScore,
+                                icon: "camera.macro.circle.fill",
+                                color: .clarityTeal
+                            )
+                            
+                            ScoreDetailCard(
+                                title: "Finance",
+                                score: score.financeScore,
+                                icon: "dollarsign.circle.fill",
+                                color: .clarityPurple
+                            )
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // Insight Box
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(Color.clarityPurple)
+                            Text("Clarity Insight")
+                                .font(.headline)
+                        }
+                        
+                        Text(generateInsight())
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding()
+                    .cardStyle()
+                    .padding(.horizontal)
+                    
+                    // What Moves This Up Section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("What moves this up?")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            ImprovementRow(title: "Complete a task", points: "+4 points", icon: "checkmark.circle.fill", color: .clarityBlue)
+                            ImprovementRow(title: "Complete a habit", points: "+2 points", icon: "repeat.circle.fill", color: .clarityOrange)
+                            ImprovementRow(title: "Log your mood", points: "+5 points", icon: "face.smiling.fill", color: .clarityPink)
+                            ImprovementRow(title: "Capture a moment", points: "+3 points", icon: "camera.macro.circle.fill", color: .clarityTeal)
+                            ImprovementRow(title: "Log a transaction", points: "+3 points", icon: "dollarsign.circle.fill", color: .clarityPurple)
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.bottom, 40)
                 }
-                .padding()
             }
             .background(Color.clarityBackground.ignoresSafeArea())
-            .navigationTitle("Score Details")
+            .navigationTitle("Clarity Score")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.title3)
+                    }
                 }
             }
         }
     }
+    
+    private func generateInsight() -> String {
+        // Simple logic to find lowest area and give encouragement
+        let scores = [
+            ("Tasks", score.taskScore),
+            ("Habits", score.habitScore),
+            ("Mood", score.moodScore),
+            ("Moments", score.momentScore),
+            ("Finance", score.financeScore)
+        ]
+        
+        if let lowest = scores.min(by: { $0.1 < $1.1 }) {
+            return "Your \(lowest.0.lowercased()) score is a bit lower this week (\(Int(lowest.1))). Try focusing on small wins in this area to boost your overall clarity."
+        }
+        
+        return "You're doing great! Keep maintaining balance across all areas of your life."
+    }
 }
 
-// MARK: - Score Component Row
-struct ScoreComponentRow: View {
+struct ImprovementRow: View {
     let title: String
-    let score: Double
-    let weight: Int
+    let points: String
+    let icon: String
     let color: Color
     
     var body: some View {
-        VStack(spacing: 8) {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.title3)
+                .frame(width: 30)
+            
+            Text(title)
+                .font(.subheadline)
+            
+            Spacer()
+            
+            Text(points)
+                .font(.subheadline.bold())
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .background(Color.clarityCard)
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Score Detail Card
+struct ScoreDetailCard: View {
+    let title: String
+    let score: Double
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(title)
-                    .font(.clarityCallout)
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(color)
                 
                 Spacer()
                 
                 Text("\(Int(score))")
-                    .font(.clarityTitle)
-                    .foregroundStyle(color)
-                
-                Text("(\(weight)%)")
-                    .font(.clarityCaption)
-                    .foregroundStyle(.secondary)
+                    .font(.title2.bold())
+                    .foregroundStyle(.primary)
             }
             
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color.opacity(0.2))
-                        .frame(height: 8)
-                    
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color.gradient)
-                        .frame(width: geo.size.width * (score / 100), height: 8)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+                
+                // Progress Bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(color.opacity(0.2))
+                            .frame(height: 4)
+                        
+                        Capsule()
+                            .fill(color)
+                            .frame(width: geo.size.width * (score / 100), height: 4)
+                    }
                 }
+                .frame(height: 4)
             }
-            .frame(height: 8)
         }
+        .padding()
+        .background(Color.clarityCard)
+        .cornerRadius(16)
     }
 }
 
@@ -256,4 +389,5 @@ struct ScoreComponentRow: View {
     
     ClarityScoreCard(score: mockScore)
         .padding()
+        .background(Color.black)
 }

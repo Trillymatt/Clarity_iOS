@@ -248,6 +248,53 @@ struct TaskRowView: View {
     }
 }
 
+// MARK: - Accessory Rectangular Widget View (Lock Screen / StandBy)
+
+struct AccessoryRectangularTasksWidgetView: View {
+    var entry: ClarityEntry
+    
+    var incompleteTasks: [WidgetTask] {
+        Array(entry.data.upcomingTasks.filter { !$0.isCompleted }.prefix(2))
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            // Header row
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("Tasks")
+                    .font(.system(size: 11, weight: .bold))
+                Spacer()
+                Text("\(entry.data.todayTasksCompleted)/\(entry.data.todayTasksTotal)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            
+            if incompleteTasks.isEmpty {
+                HStack {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 12))
+                    Text("All done!")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                ForEach(incompleteTasks, id: \.id) { task in
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle")
+                            .font(.system(size: 8))
+                        Text(task.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Widget Configuration
 
 struct TasksWidget: Widget {
@@ -259,7 +306,7 @@ struct TasksWidget: Widget {
         }
         .configurationDisplayName("Tasks")
         .description("See your tasks for today")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -270,27 +317,60 @@ struct TasksWidgetEntryView: View {
     var entry: ClarityEntry
     
     var body: some View {
-        Group {
-            switch family {
-            case .systemSmall:
-                SmallTasksWidgetView(entry: entry)
-            case .systemMedium:
-                MediumTasksWidgetView(entry: entry)
-            case .systemLarge:
-                LargeTasksWidgetView(entry: entry)
-            default:
-                SmallTasksWidgetView(entry: entry)
+        if #available(iOS 17.0, *) {
+            Group {
+                switch family {
+                case .systemSmall:
+                    SmallTasksWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumTasksWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeTasksWidgetView(entry: entry)
+                case .accessoryRectangular:
+                    AccessoryRectangularTasksWidgetView(entry: entry)
+                default:
+                    SmallTasksWidgetView(entry: entry)
+                }
             }
-        }
-        .containerBackground(for: .widget) {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.3, green: 0.7, blue: 0.9),
-                    Color(red: 0.2, green: 0.5, blue: 0.8)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            .containerBackground(for: .widget) {
+                if family == .accessoryRectangular {
+                    Color.clear
+                } else {
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.3, green: 0.7, blue: 0.9),
+                            Color(red: 0.2, green: 0.5, blue: 0.8)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+            }
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.3, green: 0.7, blue: 0.9),
+                        Color(red: 0.2, green: 0.5, blue: 0.8)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                switch family {
+                case .systemSmall:
+                    SmallTasksWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumTasksWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeTasksWidgetView(entry: entry)
+                case .accessoryRectangular:
+                    AccessoryRectangularTasksWidgetView(entry: entry)
+                default:
+                    SmallTasksWidgetView(entry: entry)
+                }
+            }
         }
     }
 }

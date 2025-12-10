@@ -208,55 +208,81 @@ struct WeeklyReviewView: View {
                         .padding(.bottom, 16)
                         .padding(.top, 12)
                     } else {
-                        // Text Input with suggestions
-                        HStack(spacing: 12) {
-                            ZStack(alignment: .leading) {
-                                if inputText.isEmpty {
-                                    Text(placeholderForCurrentStep)
-                                        .foregroundStyle(Color.secondary.opacity(0.5))
-                                        .padding(.horizontal, 16)
+                        // Text Input
+                        HStack(alignment: .bottom, spacing: 12) {
+                            TextField(placeholderForCurrentStep, text: $inputText, axis: .vertical)
+                                .focused($isInputFocused)
+                                .padding(12)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .lineLimit(1...5)
+                                .submitLabel(.send)
+                                .onSubmit {
+                                    if !inputText.isEmpty {
+                                        sendMessage(inputText)
+                                    }
                                 }
-                                
-                                TextField("", text: $inputText)
-                                    .focused($isInputFocused)
-                                    .submitLabel(.send)
-                                    .onSubmit {
-                                        if !inputText.isEmpty {
-                                            sendMessage(inputText)
-                                        }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .strokeBorder(
+                                            AngularGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.clarityBlue,
+                                                    Color.clarityPurple,
+                                                    Color.clarityBlue
+                                                ]),
+                                                center: .center,
+                                                startAngle: .degrees(glowRotation),
+                                                endAngle: .degrees(glowRotation + 360)
+                                            ),
+                                            lineWidth: isInputFocused ? 2 : 0
+                                        )
+                                )
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(
+                                            AngularGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.clarityBlue,
+                                                    Color.clarityPurple,
+                                                    Color.clarityBlue
+                                                ]),
+                                                center: .center,
+                                                startAngle: .degrees(glowRotation),
+                                                endAngle: .degrees(glowRotation + 360)
+                                            ),
+                                            lineWidth: 4
+                                        )
+                                        .blur(radius: 8) // Inner glow
+                                        .opacity(isInputFocused ? 0.6 : 0)
+                                )
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(
+                                            AngularGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.clarityBlue,
+                                                    Color.clarityPurple,
+                                                    Color.clarityBlue
+                                                ]),
+                                                center: .center,
+                                                startAngle: .degrees(glowRotation),
+                                                endAngle: .degrees(glowRotation + 360)
+                                            ),
+                                            lineWidth: 4
+                                        )
+                                        .blur(radius: 16) // Outer glow
+                                        .opacity(isInputFocused ? 0.4 : 0)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: isInputFocused ? 0 : 1)
+                                )
+                                .onAppear {
+                                    withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
+                                        glowRotation = 360
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color.clarityCard)
-                                    .cornerRadius(20)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(
-                                                AngularGradient(
-                                                    gradient: Gradient(colors: [
-                                                        Color.clarityBlue,
-                                                        Color.clarityPurple,
-                                                        Color.clarityBlue
-                                                    ]),
-                                                    center: .center,
-                                                    startAngle: .degrees(glowRotation),
-                                                    endAngle: .degrees(glowRotation + 360)
-                                                ),
-                                                lineWidth: 4
-                                            )
-                                            .blur(radius: 16)
-                                            .opacity(isInputFocused ? 0.4 : 0)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.secondary.opacity(0.2), lineWidth: isInputFocused ? 0 : 1)
-                                    )
-                                    .onAppear {
-                                        withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
-                                            glowRotation = 360
-                                        }
-                                    }
-                            }
+                                }
                             
                             Button(action: { sendMessage(inputText) }) {
                                 Image(systemName: "arrow.up.circle.fill")
@@ -271,6 +297,13 @@ struct WeeklyReviewView: View {
                     }
                 }
                 .background(.ultraThinMaterial)
+                
+                // Disclaimer
+                Text("* Guided reflection using pre-selected questions")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary.opacity(0.6))
+                    .padding(.bottom, 4)
+                    .padding(.top, 4)
             }
             
             // Extract Action Items button (pinned to bottom)

@@ -18,6 +18,7 @@ final class UserProfile {
     var biggestPriority: String?
     var idealDay: String?
     var desiredHabit: String?
+    var appleUserId: String? // Stable identifier for Apple Sign In
     
     init(name: String, email: String, reason: String? = nil, passwordHash: String? = nil) {
         self.name = name
@@ -36,10 +37,12 @@ struct AuthGate: View {
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
     @State private var showProfileSheet = false
+    @AppStorage("lastUserEmail") private var lastUserEmail: String?
     
     // Onboarding State
     @State private var onboardingData: OnboardingData?
     @State private var isCheckingSession = true
+    @State private var recentCompletedEmail: String?
     
     var body: some View {
         if isCheckingSession {
@@ -55,8 +58,12 @@ struct AuthGate: View {
                     isCheckingSession = false
                 }
             }
-         } else if let lastEmail = AuthManager.shared.getLastUserEmail(),
-                  let profile = profiles.first(where: { $0.email == lastEmail }),
+         } else if let email = recentCompletedEmail {
+             // 0. Immediate priority: User just finished onboarding
+             RootTabView(userEmail: email)
+                 .onAppear { print("🚀 Showing Dashboard via local override for \(email)") }
+         } else if let email = lastUserEmail,
+                  let profile = profiles.first(where: { $0.email == email }),
                   profile.onboardingCompleted {
             // User is logged in and completed onboarding - go straight to app
             RootTabView(userEmail: profile.email)
@@ -81,7 +88,14 @@ struct AuthGate: View {
                 }
             )
             .fullScreenCover(item: $onboardingData) { data in
-                OnboardingFlow(initialName: data.name, initialEmail: data.email)
+                OnboardingFlow(initialName: data.name, initialEmail: data.email, onComplete: { email in
+                    // Force refresh and dismiss
+                    print("🚀 Onboarding completed for \(email) - forcing transition")
+                    // Dismiss first
+                    onboardingData = nil
+                    // Set local override to ensure immediate switching
+                    recentCompletedEmail = email
+                })
             }
         }
     }
@@ -299,30 +313,46 @@ struct LandingView: View {
             let appleUserId = credential.user
             print("🍎 Apple Sign In - User ID: \(appleUserId)")
             
-            // Check if we have seen this Apple User before
-            if let existingEmail = AuthManager.shared.getEmailForAppleUser(appleUserId),
-               let existingProfile = getExistingProfile(email: existingEmail) {
-                // Returning user - restore session and skip onboarding
-                print("✅ Returning Apple user: \(existingEmail), Profile complete: \(existingProfile.onboardingCompleted)")
-                AuthManager.shared.saveLastUserEmail(existingEmail)
-                // AuthGate will pick up the session and show the app
+            // 1. Look up by stable Apple User ID first (Robust)
+            if let existingProfile = profiles.first(where: { $0.appleUserId == appleUserId }) {
+                print("✅ Found existing profile by Apple ID: \(existingProfile.email)")
+                AuthManager.shared.saveLastUserEmail(existingProfile.email)
                 return
             }
             
-            // First time sign in - get name and email
+            // 2. Fallback check: Look up by email (Legacy/First time)
+            // Note: Apple only provides email on FIRST sign in.
+            // If we have a local mapping, use it.
+            var emailToCheck = credential.email
+            if emailToCheck == nil {
+                emailToCheck = AuthManager.shared.getEmailForAppleUser(appleUserId)
+            }
+            
+            if let email = emailToCheck, !email.isEmpty,
+               let existingProfile = profiles.first(where: { $0.email == email }) {
+                // Link the Apple ID to this existing profile for future logins
+                print("🔗 Linking Apple ID \(appleUserId) to existing profile: \(email)")
+                existingProfile.appleUserId = appleUserId
+                try? context.save()
+                
+                AuthManager.shared.saveLastUserEmail(email)
+                return
+            }
+            
+            // 3. New User or Re-install without email
+            // If we are here, we don't have a profile with this Apple ID,
+            // and we couldn't match by email (either not provided or not in DB).
+            
             let givenName = credential.fullName?.givenName ?? ""
             let familyName = credential.fullName?.familyName ?? ""
             var email = credential.email ?? ""
             var name = [givenName, familyName].joined(separator: " ").trimmingCharacters(in: .whitespaces)
             
-            print("🍎 Apple provided - Name: '\(name)', Email: '\(email)'")
-            
-            // Apple only provides email/name on FIRST sign in
-            // If empty, this is a returning user but we don't have mapping
             if email.isEmpty {
-                // Create a unique email based on Apple User ID
+                // Critical: We need an email for the system.
+                // If Apple hid it and we have no mapping, we must generate a consistent one.
                 email = "apple_\(appleUserId)@privaterelay.appleid.com"
-                print("⚠️ Apple didn't provide email (returning user). Using: \(email)")
+                print("⚠️ Apple didn't provide email (returning user, fresh install). Using generated: \(email)")
             }
             
             if name.isEmpty {
@@ -354,6 +384,7 @@ struct LandingView: View {
                 print("🆕 New Apple user: \(email), Name: '\(name)'")
                 let newProfile = UserProfile(name: name, email: email)
                 newProfile.onboardingCompleted = false
+                newProfile.appleUserId = appleUserId // Save the ID!
                 context.insert(newProfile)
                 try? context.save()
                 print("💾 Created profile to capture name before onboarding")
@@ -559,6 +590,9 @@ struct EmailSignInView: View {
 
 // MARK: - Root Tabs
 struct RootTabView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    
     let userEmail: String
     @State private var selectedTab: Tab = .home
     @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
@@ -608,11 +642,20 @@ struct RootTabView: View {
                 }
         }
         .onAppear {
+            // Update widget data when app starts
+            WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+            
             // Show tutorial on first launch
             if !hasSeenTutorial {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     showTutorial = true
                 }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // Update widget data when app returns to foreground
+                WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
             }
         }
     }
@@ -763,6 +806,7 @@ struct OnboardingFlow: View {
     
     var initialName: String
     var initialEmail: String
+    var onComplete: ((String) -> Void)?
     
     // Chat State
     @State private var messages: [ChatMessage] = []
@@ -777,9 +821,10 @@ struct OnboardingFlow: View {
     @State private var idealDay = ""
     @State private var desiredHabit = ""
     
-    init(initialName: String, initialEmail: String) {
+    init(initialName: String, initialEmail: String, onComplete: ((String) -> Void)? = nil) {
         self.initialName = initialName
         self.initialEmail = initialEmail
+        self.onComplete = onComplete
         print("🎬 OnboardingFlow INIT - Name: '\(initialName)', Email: '\(initialEmail)'")
     }
     
@@ -988,6 +1033,12 @@ struct OnboardingFlow: View {
                             .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                         .padding(16)
+                        
+                        // Disclaimer
+                        Text("* Guided reflection using pre-selected questions")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary.opacity(0.6))
+                            .padding(.bottom, 4)
                     }
                 }
             }
@@ -1135,6 +1186,8 @@ struct OnboardingFlow: View {
         }
         
         try? context.save()
+        print("✅ Calling onComplete with \(initialEmail)")
+        onComplete?(initialEmail)
         dismiss()
     }
 }

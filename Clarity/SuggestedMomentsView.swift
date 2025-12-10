@@ -3,31 +3,55 @@ import SwiftData
 
 struct SuggestedMomentsView: View {
     @Environment(\.modelContext) private var context
+    @Query private var recentMoments: [LifeMoment]
+    
     @Binding var showAdd: Bool
     @Binding var prefillTitle: String
     let userEmail: String
     
-    // Updated: Pass type and mood instead of title
-    let suggestions: [(title: String, emoji: String, icon: String, subtitle: String, type: MomentType, mood: Int)] = [
-        ("Today's Win", "🏆", "trophy.fill", "Something you accomplished", .win, 4), // Happy mood
-        ("Grateful For", "🙏", "heart.fill", "What made you smile?", .gratitude, 4),
-        ("New Learning", "💡", "lightbulb.fill", "Something you discovered", .other, 3),
-        ("Kind Act", "💝", "gift.fill", "How you helped someone", .connection, 4),
-        ("Proud Moment", "⭐", "star.fill", "Something you're proud of", .win, 4),
-        ("Connection", "🤝", "person.2.fill", "A meaningful conversation", .connection, 4),
-        ("Challenge", "⚡", "bolt.fill", "Something difficult you faced", .challenge, 2),
-        ("Reflection", "💭", "cloud.sun.fill", "A thought or realization", .other, 3),
-    ]
+    init(showAdd: Binding<Bool>, prefillTitle: Binding<String>, userEmail: String) {
+        self._showAdd = showAdd
+        self._prefillTitle = prefillTitle
+        self.userEmail = userEmail
+        
+        // Query recent moments (last 7 days)
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        _recentMoments = Query(filter: #Predicate<LifeMoment> { 
+            $0.ownerEmail == userEmail && $0.date >= weekAgo 
+        })
+    }
     
     @State private var selectedSuggestion: (type: MomentType, mood: Int, prompt: String)? = nil
     @State private var showQuickAdd = false
+    
+    /// Build context from user's recent moments
+    var suggestionContext: SuggestionEngine.UserContextData {
+        var context = SuggestionEngine.UserContextData()
+        
+        // Recent moment types
+        context.recentMomentTypes = recentMoments.map { $0.type }
+        
+        // Days since last gratitude
+        let gratitudeMoments = recentMoments.filter { $0.type == .gratitude }
+        if let lastGratitude = gratitudeMoments.max(by: { $0.date < $1.date }) {
+            let days = Calendar.current.dateComponents([.day], from: lastGratitude.date, to: Date()).day ?? 999
+            context.daysSinceLastGratitude = days
+        }
+        
+        return context
+    }
+    
+    /// Dynamic suggestions from engine
+    var suggestions: [SuggestionEngine.MomentSuggestion] {
+        SuggestionEngine.shared.generateMomentSuggestions(context: suggestionContext)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Capture Your Moments")
                     .font(.title2.bold())
-                Text("What made today special?")
+                Text(headerSubtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -35,12 +59,13 @@ struct SuggestedMomentsView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(suggestions, id: \.title) { suggestion in
+                    ForEach(suggestions) { suggestion in
                         SuggestedMomentCard(
                             title: suggestion.title,
                             emoji: suggestion.emoji,
                             icon: suggestion.icon,
                             subtitle: suggestion.subtitle,
+                            isPriority: suggestion.isPriority,
                             onTap: {
                                 selectedSuggestion = (
                                     type: suggestion.type,
@@ -52,8 +77,9 @@ struct SuggestedMomentsView: View {
                         )
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
             }
+            .padding(.horizontal, -12) // Break out of parent padding
         }
         .padding(.vertical)
         .sheet(isPresented: $showQuickAdd) {
@@ -65,6 +91,16 @@ struct SuggestedMomentsView: View {
                     promptQuestion: suggestion.prompt
                 )
             }
+        }
+    }
+    
+    private var headerSubtitle: String {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        switch weekday {
+        case 2: return "Start the week with intention"
+        case 6: return "Celebrate your Friday wins!"
+        case 7, 1: return "Weekend reflections"
+        default: return "What made today special?"
         }
     }
     
@@ -84,7 +120,17 @@ struct SuggestedMomentCard: View {
     let emoji: String
     let icon: String
     let subtitle: String
+    let isPriority: Bool
     let onTap: () -> Void
+    
+    init(title: String, emoji: String, icon: String, subtitle: String, isPriority: Bool = false, onTap: @escaping () -> Void) {
+        self.title = title
+        self.emoji = emoji
+        self.icon = icon
+        self.subtitle = subtitle
+        self.isPriority = isPriority
+        self.onTap = onTap
+    }
     
     var body: some View {
         Button(action: onTap) {

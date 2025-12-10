@@ -80,7 +80,7 @@ struct EnhancedFinanceTab: View {
                             
                             FinanceScoreRing(score: financeScore)
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 12)
                         .padding(.top, 10)
                         
                         // Weekly Awareness (Primary Focus)
@@ -90,12 +90,12 @@ struct EnhancedFinanceTab: View {
                                 $0.date >= Calendar.current.date(byAdding: .day, value: -6, to: Date())!
                             }.count
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal, 12)
                         
                         // Category Breakdown
                         if !spendingByCategory.isEmpty {
                             CategoryBreakdownCard(categoryData: spendingByCategory)
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                         }
                         
                         if transactions.isEmpty {
@@ -103,9 +103,10 @@ struct EnhancedFinanceTab: View {
                                 showAdd: $showAdd,
                                 prefillAmount: $prefillAmount,
                                 prefillCategory: $prefillCategory,
-                                prefillNote: $prefillNote
+                                prefillNote: $prefillNote,
+                                userEmail: userEmail
                             )
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                         } else {
                             QuickAddTransactionView(
                                 showAdd: $showAdd,
@@ -113,18 +114,18 @@ struct EnhancedFinanceTab: View {
                                 prefillCategory: $prefillCategory,
                                 prefillNote: $prefillNote
                             )
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                             
                             // Recent Transactions
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Recent Activity")
                                     .font(.headline)
                                     .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, 12)
                                 
                                 ForEach(transactions.prefix(10)) { transaction in
                                     EnhancedTransactionRow(transaction: transaction)
-                                        .padding(.horizontal)
+                                        .padding(.horizontal, 12)
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                             Button(role: .destructive) {
                                                 context.delete(transaction)

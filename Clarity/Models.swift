@@ -33,13 +33,14 @@ final class TaskItem {
     var estimatedMinutes: Int?
     var completedDate: Date?
     var notifyOnDueDate: Bool
+    var isInProgress: Bool
     
     var category: TaskCategory {
         get { TaskCategory(rawValue: categoryRaw) ?? .other }
         set { categoryRaw = newValue.rawValue }
     }
     
-    init(id: UUID = UUID(), ownerEmail: String = "", title: String, notes: String? = nil, dueDate: Date? = nil, isCompleted: Bool = false, isToday: Bool = false, category: TaskCategory = .other, estimatedMinutes: Int? = nil, completedDate: Date? = nil, notifyOnDueDate: Bool = false) {
+    init(id: UUID = UUID(), ownerEmail: String = "", title: String, notes: String? = nil, dueDate: Date? = nil, isCompleted: Bool = false, isToday: Bool = false, category: TaskCategory = .other, estimatedMinutes: Int? = nil, completedDate: Date? = nil, notifyOnDueDate: Bool = false, isInProgress: Bool = false) {
         self.id = id
         self.ownerEmail = ownerEmail
         self.title = title
@@ -51,6 +52,7 @@ final class TaskItem {
         self.estimatedMinutes = estimatedMinutes
         self.completedDate = completedDate
         self.notifyOnDueDate = notifyOnDueDate
+        self.isInProgress = isInProgress
     }
 }
 

@@ -73,9 +73,9 @@ struct WidgetData: Codable {
 class WidgetDataManager {
     static let shared = WidgetDataManager()
     
-    // IMPORTANT: This matches your bundle ID (mattknorman.Clarity)
-    // Make sure to add this EXACT identifier in App Groups capability for both targets
-    private let appGroupIdentifier = "group.mattknorman.Clarity.shared"
+    // IMPORTANT: This MUST match EXACTLY what is in the entitlements files for both targets
+    // Check: Clarity/Clarity.entitlements AND Clarity WidgetsExtension.entitlements
+    private let appGroupIdentifier = "group.com.mattknorman.Clarity.shared"
     private let widgetDataKey = "widgetData"
     
     private var userDefaults: UserDefaults? {
@@ -84,23 +84,35 @@ class WidgetDataManager {
     
     func saveWidgetData(_ data: WidgetData) {
         guard let encoded = try? JSONEncoder().encode(data) else {
-            print("Failed to encode widget data")
+            print("❌ Failed to encode widget data")
             return
         }
+        
+        print("✅ Saving widget data: \(data.todayTasksCompleted)/\(data.todayTasksTotal) tasks, score: \(data.clarityScore)")
+        print("   App Group: \(appGroupIdentifier)")
+        
         userDefaults?.set(encoded, forKey: widgetDataKey)
         userDefaults?.synchronize()
+        
+        print("✅ Widget data saved successfully")
         
         // Tell widgets to reload
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
+        print("✅ Requested widget timeline reload")
         #endif
     }
     
     func loadWidgetData() -> WidgetData? {
+        print("📱 Loading widget data from App Group: \(appGroupIdentifier)")
+        
         guard let data = userDefaults?.data(forKey: widgetDataKey),
               let decoded = try? JSONDecoder().decode(WidgetData.self, from: data) else {
+            print("❌ No widget data found or failed to decode")
             return nil
         }
+        
+        print("✅ Loaded widget data: \(decoded.todayTasksCompleted)/\(decoded.todayTasksTotal) tasks, score: \(decoded.clarityScore)")
         return decoded
     }
 }

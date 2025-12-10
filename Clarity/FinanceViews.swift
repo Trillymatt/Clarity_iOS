@@ -39,8 +39,9 @@ struct QuickAddTransactionView: View {
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
             }
+            .padding(.horizontal, -12) // Break out of parent padding
         }
     }
 }
@@ -73,53 +74,104 @@ struct QuickAddButton: View {
 // MARK: - Suggested Transactions View
 struct SuggestedTransactionsView: View {
     @Environment(\.modelContext) private var context
+    @Query private var recentTransactions: [Transaction]
+    
     @Binding var showAdd: Bool
     @Binding var prefillAmount: Double
     @Binding var prefillCategory: TransactionCategory
     @Binding var prefillNote: String
     
-    let suggestions = [
-        ("☕", "Coffee", 5.0, TransactionCategory.food),
-        ("🍔", "Lunch", 12.0, TransactionCategory.food),
-        ("⛽", "Gas", 40.0, TransactionCategory.transport),
-        ("🛒", "Groceries", 60.0, TransactionCategory.food),
-        ("🎬", "Entertainment", 20.0, TransactionCategory.entertainment),
-        ("💡", "Bills", 50.0, TransactionCategory.bills),
-        ("🛍️", "Shopping", 30.0, TransactionCategory.shopping),
-        ("🚕", "Transport", 15.0, TransactionCategory.transport),
-    ]
+    let userEmail: String
+    
+    init(showAdd: Binding<Bool>, prefillAmount: Binding<Double>, prefillCategory: Binding<TransactionCategory>, prefillNote: Binding<String>, userEmail: String) {
+        self._showAdd = showAdd
+        self._prefillAmount = prefillAmount
+        self._prefillCategory = prefillCategory
+        self._prefillNote = prefillNote
+        self.userEmail = userEmail
+        
+        // Query recent transactions (last 30 days)
+        let monthAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        _recentTransactions = Query(filter: #Predicate<Transaction> { 
+            $0.ownerEmail == userEmail && $0.date >= monthAgo 
+        })
+    }
+    
+    /// Build context from user's transaction history
+    var suggestionContext: SuggestionEngine.UserContextData {
+        var context = SuggestionEngine.UserContextData()
+        
+        // Calculate spending by category
+        let grouped = Dictionary(grouping: recentTransactions) { $0.category }
+        context.spendingByCategory = grouped.mapValues { transactions in
+            transactions.reduce(0) { $0 + $1.amount }
+        }
+        
+        // Calculate average transaction amount
+        if !recentTransactions.isEmpty {
+            context.averageTransactionAmount = recentTransactions.reduce(0) { $0 + $1.amount } / Double(recentTransactions.count)
+        }
+        
+        return context
+    }
+    
+    /// Dynamic suggestions from engine
+    var suggestions: [SuggestionEngine.FinanceSuggestion] {
+        SuggestionEngine.shared.generateFinanceSuggestions(context: suggestionContext)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("No transactions yet")
-                    .font(.title2.bold())
-                Text("Track your spending by adding common expenses")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if recentTransactions.isEmpty {
+                    Text("No transactions yet")
+                        .font(.title2.bold())
+                    Text("Track your spending by adding common expenses")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Quick Add")
+                        .font(.title2.bold())
+                    Text(headerSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(suggestions, id: \.1) { suggestion in
+                    ForEach(suggestions) { suggestion in
                         SuggestedTransactionCard(
-                            emoji: suggestion.0,
-                            title: suggestion.1,
-                            amount: suggestion.2,
-                            category: suggestion.3
+                            emoji: suggestion.emoji,
+                            title: suggestion.title,
+                            amount: suggestion.amount,
+                            category: suggestion.category,
+                            reason: suggestion.reason
                         ) {
-                            prefillAmount = suggestion.2
-                            prefillCategory = suggestion.3
-                            prefillNote = suggestion.1
+                            prefillAmount = suggestion.amount
+                            prefillCategory = suggestion.category
+                            prefillNote = suggestion.title
                             showAdd = true
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
             }
+            .padding(.horizontal, -12) // Break out of parent padding
         }
         .padding(.vertical)
+    }
+    
+    private var headerSubtitle: String {
+        let day = Calendar.current.component(.day, from: Date())
+        if day <= 5 {
+            return "Start of month - don't forget bills!"
+        } else if day >= 25 {
+            return "End of month - review your spending"
+        } else {
+            return "Based on your spending patterns"
+        }
     }
 }
 
@@ -128,11 +180,21 @@ struct SuggestedTransactionCard: View {
     let title: String
     let amount: Double
     let category: TransactionCategory
+    let reason: String?
     let onTap: () -> Void
+    
+    init(emoji: String, title: String, amount: Double, category: TransactionCategory, reason: String? = nil, onTap: @escaping () -> Void) {
+        self.emoji = emoji
+        self.title = title
+        self.amount = amount
+        self.category = category
+        self.reason = reason
+        self.onTap = onTap
+    }
     
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 Text(emoji)
                     .font(.system(size: 32))
                 
@@ -142,9 +204,16 @@ struct SuggestedTransactionCard: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     
-                    Text("$\(amount, specifier: "%.0f")")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if amount > 0 {
+                        Text("$\(amount, specifier: "%.0f")")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if let reason = reason {
+                        Text(reason)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 
                 Image(systemName: "plus.circle.fill")

@@ -191,9 +191,11 @@ struct AddTaskSheet: View {
             }
             .navigationTitle(taskToEdit == nil ? "New Task" : "Edit Task")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            }
+            .toolbar(content: {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            })
             .alert("AI Error", isPresented: $showAIError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -220,6 +222,9 @@ struct AddTaskSheet: View {
             existing.category = category
             existing.notifyOnDueDate = notifyOnDueDate
             try? context.save()
+            
+            // Update widget data
+            WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
             
             // Update notifications
             if !isToday && notifyOnDueDate && dueDate >= Date() {
@@ -280,6 +285,10 @@ struct AddTaskSheet: View {
             }
             
             try? context.save()
+            
+            // Update widget data
+            WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+            
             dismiss()
         }
     }
@@ -294,6 +303,10 @@ struct AddTaskSheet: View {
         
         context.delete(existing)
         try? context.save()
+        
+        // Update widget data
+        WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+        
         dismiss()
     }
     
@@ -537,9 +550,11 @@ struct AddHabitSheet: View {
             }
             .navigationTitle(habitToEdit == nil ? "New Habit" : "Edit Habit")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            }
+            .toolbar(content: {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            })
             .alert("Delete Habit?", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
@@ -614,6 +629,9 @@ struct AddHabitSheet: View {
                     NotificationManager.shared.cancelHabitReminder(habitId: existing.id)
                 }
             }
+            
+            // Update widget data
+            WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
         } else {
             // Create new habit - assign next available displayOrder
             let allHabits = try? context.fetch(FetchDescriptor<Habit>())
@@ -645,6 +663,10 @@ struct AddHabitSheet: View {
                 }
             }
         }
+        
+        // Update widget data
+        WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+        
         dismiss()
     }
     
@@ -683,6 +705,10 @@ struct AddHabitSheet: View {
         // Then delete the habit
         context.delete(existing)
         try? context.save()
+        
+        // Update widget data
+        WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+        
         dismiss()
     }
 }
@@ -819,9 +845,11 @@ struct AddMomentSheet: View {
             }
             .navigationTitle(momentToEdit == nil ? "New Moment" : "Edit Moment")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            }
+            .toolbar(content: {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            })
             .onAppear {
                 if !prefillTitle.isEmpty && momentToEdit == nil {
                     title = prefillTitle

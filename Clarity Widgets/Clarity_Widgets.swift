@@ -327,27 +327,52 @@ struct WidgetEntryView: View {
     var entry: ClarityEntry
     
     var body: some View {
-        Group {
-            switch family {
-            case .systemSmall:
-                SmallClarityWidgetView(entry: entry)
-            case .systemMedium:
-                MediumClarityWidgetView(entry: entry)
-            case .systemLarge:
-                LargeClarityWidgetView(entry: entry)
-            default:
-                SmallClarityWidgetView(entry: entry)
+        if #available(iOS 17.0, *) {
+            Group {
+                switch family {
+                case .systemSmall:
+                    SmallClarityWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumClarityWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeClarityWidgetView(entry: entry)
+                default:
+                    SmallClarityWidgetView(entry: entry)
+                }
             }
-        }
-        .containerBackground(for: .widget) {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.4, green: 0.6, blue: 1.0),
-                    Color(red: 0.6, green: 0.4, blue: 1.0)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            .containerBackground(for: .widget) {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.4, green: 0.6, blue: 1.0),
+                        Color(red: 0.6, green: 0.4, blue: 1.0)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.4, green: 0.6, blue: 1.0),
+                        Color(red: 0.6, green: 0.4, blue: 1.0)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                switch family {
+                case .systemSmall:
+                    SmallClarityWidgetView(entry: entry)
+                case .systemMedium:
+                    MediumClarityWidgetView(entry: entry)
+                case .systemLarge:
+                    LargeClarityWidgetView(entry: entry)
+                default:
+                    SmallClarityWidgetView(entry: entry)
+                }
+            }
         }
     }
 }

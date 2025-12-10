@@ -74,20 +74,14 @@ struct EnhancedMomentsTab: View {
                             
                             MomentScoreRing(score: momentScore)
                         }
-                        .padding(.horizontal)
                         .padding(.top, 10)
                         
                         // Mood Trend (if available)
                         if !moodEntries.isEmpty {
                             MoodTrendMiniChart(moodEntries: moodEntries)
-                                .padding(.horizontal)
                         }
                         
-                        if moments.isEmpty {
-                            SuggestedMomentsView(showAdd: $showAdd, prefillTitle: $prefillTitle, userEmail: userEmail)
-                                .padding(.horizontal)
-                        } else {
-                            // Latest Moment Card
+                        // Latest Moment Card
                             if let latest = latestMoment {
                                 VStack(alignment: .leading, spacing: 16) {
                                     Label("Latest Reflection", systemImage: "sparkles")
@@ -96,7 +90,6 @@ struct EnhancedMomentsTab: View {
                                         .padding(.horizontal)
                                     
                                     LatestMomentCard(moment: latest)
-                                        .padding(.horizontal)
                                 }
                             }
                             
@@ -106,18 +99,15 @@ struct EnhancedMomentsTab: View {
                                     Text("Timeline")
                                         .font(.headline)
                                         .foregroundStyle(.secondary)
-                                        .padding(.horizontal)
                                     
                                     ForEach(groupedByDay(moments: otherMoments), id: \.key) { day, items in
                                         VStack(alignment: .leading, spacing: 12) {
                                             Text(day, style: .date)
                                                 .font(.caption.bold())
                                                 .foregroundStyle(.secondary)
-                                                .padding(.horizontal)
                                             
                                             ForEach(items) { moment in
                                                 EnhancedMomentRow(moment: moment)
-                                                    .padding(.horizontal)
                                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                                         Button(role: .destructive) {
                                                             context.delete(moment)
@@ -131,11 +121,13 @@ struct EnhancedMomentsTab: View {
                                     }
                                 }
                             }
-                        }
+                        
+                        // Suggestions (always show)
+                        SuggestedMomentsView(showAdd: $showAdd, prefillTitle: $prefillTitle, userEmail: userEmail)
                         
                         Spacer(minLength: 80)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
                     .padding(.bottom)
                 }
             }
