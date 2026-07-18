@@ -5,8 +5,8 @@ struct RadarChart: View {
     let max: Double = 100
     let labels: [String]
     let colors: [Color]
-    let gridColor: Color = .gray.opacity(0.3)
-    let dataColor: Color = .clarityPurple
+    let gridColor: Color = .white.opacity(0.14)
+    let dataColor: Color = .clarityBlue
     
     // Animation state
     @State private var progress: CGFloat = 0
@@ -76,15 +76,23 @@ struct RadarChart: View {
         ZStack {
             RadarPolygon(data: data, max: max, center: center, radius: radius, sides: data.count)
                 .fill(LinearGradient(
-                    colors: [dataColor.opacity(0.6), dataColor.opacity(0.2)],
+                    colors: [dataColor.opacity(0.55), dataColor.opacity(0.15)],
                     startPoint: .top,
                     endPoint: .bottom
                 ))
                 .scaleEffect(progress)
                 .animation(.spring(response: 0.8, dampingFraction: 0.6), value: progress)
-            
+
+            // Neon glow pass behind the crisp stroke
             RadarPolygon(data: data, max: max, center: center, radius: radius, sides: data.count)
-                .stroke(dataColor, lineWidth: 3)
+                .stroke(dataColor, lineWidth: 6)
+                .blur(radius: 8)
+                .opacity(0.6)
+                .scaleEffect(progress)
+                .animation(.spring(response: 0.8, dampingFraction: 0.6), value: progress)
+
+            RadarPolygon(data: data, max: max, center: center, radius: radius, sides: data.count)
+                .stroke(dataColor, lineWidth: 2.5)
                 .scaleEffect(progress)
                 .animation(.spring(response: 0.8, dampingFraction: 0.6), value: progress)
         }

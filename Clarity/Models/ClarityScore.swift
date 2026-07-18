@@ -17,11 +17,12 @@ final class ClarityScore {
     var moodScore: Double
     var momentScore: Double
     var financeScore: Double
-    
+    var fitnessScore: Double
+
     // Metadata
     var trend: ScoreTrend
     var insights: [String]
-    
+
     init(
         ownerEmail: String = "",
         date: Date = Date(),
@@ -29,7 +30,9 @@ final class ClarityScore {
         habitScore: Double = 0,
         moodScore: Double = 0,
         momentScore: Double = 0,
-        financeScore: Double = 0
+        financeScore: Double = 0,
+        fitnessScore: Double = 0,
+        previousScore: Double? = nil
     ) {
         self.id = UUID()
         self.ownerEmail = ownerEmail
@@ -39,21 +42,34 @@ final class ClarityScore {
         self.moodScore = moodScore
         self.momentScore = momentScore
         self.financeScore = financeScore
+        self.fitnessScore = fitnessScore
         self.totalScore = 0
         self.trend = .neutral
         self.insights = []
-        
+
         // Calculate total
-        self.calculateTotalScore()
+        self.calculateTotalScore(previousScore: previousScore)
     }
-    
-    /// Calculate weighted total score
-    func calculateTotalScore() {
-        let weights: [Double] = [0.30, 0.25, 0.20, 0.15, 0.10]
-        let scores = [taskScore, habitScore, moodScore, momentScore, financeScore]
-        
+
+    /// Calculate weighted total score. Fitness carries real weight now that
+    /// workouts/body metrics feed in, so the other five weights were trimmed
+    /// to make room (they still sum to 1.0).
+    func calculateTotalScore(previousScore: Double? = nil) {
+        let weights: [Double] = [0.25, 0.20, 0.15, 0.10, 0.10, 0.20]
+        let scores = [taskScore, habitScore, moodScore, momentScore, financeScore, fitnessScore]
+
         totalScore = zip(scores, weights).reduce(0) { $0 + ($1.0 * $1.1) }
         totalScore = min(100, max(0, totalScore)) // Clamp 0-100
+
+        if let previousScore {
+            if totalScore > previousScore + 2 {
+                trend = .up
+            } else if totalScore < previousScore - 2 {
+                trend = .down
+            } else {
+                trend = .neutral
+            }
+        }
     }
     
     /// Get score state based on total
@@ -106,11 +122,12 @@ enum ScoreTrend: String, Codable {
 class ClarityScoreCalculator {
     
     // Weights
-    static let taskWeight = 0.30
-    static let habitWeight = 0.25
-    static let moodWeight = 0.20
-    static let momentWeight = 0.15
+    static let taskWeight = 0.25
+    static let habitWeight = 0.20
+    static let moodWeight = 0.15
+    static let momentWeight = 0.10
     static let financeWeight = 0.10
+    static let fitnessWeight = 0.20
     
     /// Calculate task score (0-100)
     static func calculateTaskScore(tasks: [TaskItem]) -> Double {
@@ -256,30 +273,63 @@ class ClarityScoreCalculator {
         return min(100, trackingScore + categorizationScore + consistencyScore)
     }
     
-    /// Calculate complete Clarity Score
+    /// Calculate fitness score (0-100). Today: logged a workout (40) + hit a
+    /// step goal (20). Week: workout frequency vs. a 4x/week target (30) +
+    /// average daily steps vs. the same goal (10).
+    static func calculateFitnessScore(workouts: [Workout], bodyMetrics: [BodyMetric]) -> Double {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekStart = calendar.date(byAdding: .day, value: -6, to: today)!
+        let stepGoal = 8000.0
+
+        let workoutToday = workouts.contains { calendar.isDateInToday($0.date) }
+        let todayWorkoutScore: Double = workoutToday ? 40 : 0
+
+        let todaySteps = bodyMetrics.first { calendar.isDateInToday($0.date) }?.steps
+        let todayStepsScore = min(20, (Double(todaySteps ?? 0) / stepGoal) * 20)
+
+        let weekWorkouts = workouts.filter { $0.date >= weekStart }
+        let weeklyTarget = 4.0
+        let frequencyScore = min(30, (Double(weekWorkouts.count) / weeklyTarget) * 30)
+
+        let weekSteps = bodyMetrics.filter { $0.date >= weekStart }.compactMap { $0.steps }
+        let avgSteps = weekSteps.isEmpty ? 0 : Double(weekSteps.reduce(0, +)) / Double(weekSteps.count)
+        let avgStepsScore = min(10, (avgSteps / stepGoal) * 10)
+
+        return min(100, todayWorkoutScore + todayStepsScore + frequencyScore + avgStepsScore)
+    }
+
+    /// Calculate complete Clarity Score. `workouts`/`bodyMetrics` default to
+    /// empty so existing call sites keep compiling; pass `previousScore` to
+    /// get a real up/down trend instead of the default neutral.
     static func calculateFullScore(
         tasks: [TaskItem],
         habits: [Habit],
         checkins: [HabitCheckin],
         moodEntries: [MoodEntry],
         moments: [LifeMoment],
-        transactions: [Transaction]
+        transactions: [Transaction],
+        workouts: [Workout] = [],
+        bodyMetrics: [BodyMetric] = [],
+        previousScore: Double? = nil
     ) -> ClarityScore {
         let taskScore = calculateTaskScore(tasks: tasks)
         let habitScore = calculateHabitScore(habits: habits, checkins: checkins)
         let moodScore = calculateMoodScore(moodEntries: moodEntries)
         let momentScore = calculateMomentScore(moments: moments)
         let financeScore = calculateFinanceScore(transactions: transactions)
-        
+        let fitnessScore = calculateFitnessScore(workouts: workouts, bodyMetrics: bodyMetrics)
+
         let score = ClarityScore(
             taskScore: taskScore,
             habitScore: habitScore,
             moodScore: moodScore,
             momentScore: momentScore,
-            financeScore: financeScore
+            financeScore: financeScore,
+            fitnessScore: fitnessScore,
+            previousScore: previousScore
         )
-        
-        score.calculateTotalScore()
+
         return score
     }
 }

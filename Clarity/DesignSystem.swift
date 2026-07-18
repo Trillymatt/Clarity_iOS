@@ -1,38 +1,44 @@
 import SwiftUI
 
 // MARK: - Colors
+// Jarvis-style dark glass palette. Names are kept stable across the app so every
+// existing call site re-themes automatically — only values change here.
 extension Color {
-    static let clarityBackground = Color(uiColor: .systemGroupedBackground)
-    static let clarityCard = Color(uiColor: .secondarySystemGroupedBackground)
-    
-    // Brand Colors
-    static let clarityBlue = Color(hex: "4A90E2")
-    static let clarityPurple = Color(hex: "9013FE")
-    static let clarityTeal = Color(hex: "50E3C2")
-    static let clarityOrange = Color(hex: "F5A623")
-    static let clarityPink = Color(hex: "BD10E0")
-    static let clarityYellow = Color(hex: "F8E71C")
-    static let clarityGreen = Color(hex: "7ED321")
-    
+    /// Near-black void background (the base of every screen)
+    static let clarityBackground = Color(hex: "#05070C")
+    /// Elevated dark surface used beneath glass materials
+    static let claritySurface = Color(hex: "#121722")
+    /// Solid card fallback (used where materials aren't appropriate, e.g. widgets)
+    static let clarityCard = Color(hex: "#131826")
+
+    // Brand / accent colors — electric, built to glow on near-black
+    static let clarityBlue = Color(hex: "#4DC8FF")
+    static let clarityPurple = Color(hex: "#8C7CFF")
+    static let clarityTeal = Color(hex: "#35E6C0")
+    static let clarityOrange = Color(hex: "#FFB454")
+    static let clarityPink = Color(hex: "#FF6EA8")
+    static let clarityYellow = Color(hex: "#FFD666")
+    static let clarityGreen = Color(hex: "#3ADD97")
+
     // Gradients
     static let primaryGradient = LinearGradient(
         colors: [clarityBlue, clarityPurple],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    
+
     static let warmGradient = LinearGradient(
         colors: [clarityOrange, clarityPink],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    
+
     static let coolGradient = LinearGradient(
         colors: [clarityTeal, clarityBlue],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    
+
     static let claritySuccess = LinearGradient(
         colors: [clarityGreen, clarityTeal],
         startPoint: .topLeading,
@@ -73,12 +79,19 @@ extension Color {
 struct CardStyle: ViewModifier {
     var padding: CGFloat = 16
     var cornerRadius: CGFloat = 20
-    
+    var glow: Color? = nil
+
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(Color.clarityCard, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(Color.claritySurface.opacity(0.6), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: (glow ?? .clear).opacity(glow == nil ? 0 : 0.28), radius: 18, x: 0, y: 8)
+            .shadow(color: .black.opacity(0.45), radius: 14, x: 0, y: 8)
     }
 }
 
@@ -91,9 +104,13 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .background(Color.primaryGradient)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
-            .shadow(color: Color.clarityPurple.opacity(0.3), radius: 10, x: 0, y: 5)
+            .shadow(color: Color.clarityBlue.opacity(0.45), radius: 16, x: 0, y: 6)
     }
 }
 
@@ -104,27 +121,81 @@ struct SecondaryButtonStyle: ButtonStyle {
             .foregroundColor(.primary)
             .padding()
             .frame(maxWidth: .infinity)
-            .background(.thinMaterial)
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Jarvis Glow Border
+// A rotating angular-gradient glow, generalized from the input-focus effect
+// originally built for WeeklyReviewView. Used for the assistant dock/chat input
+// and anywhere else that should read as "AI is listening."
+struct JarvisGlowBorder: ViewModifier {
+    var isActive: Bool
+    var cornerRadius: CGFloat = 20
+    @State private var rotation: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        AngularGradient(
+                            colors: [Color.clarityBlue, Color.clarityPurple, Color.clarityBlue],
+                            center: .center,
+                            startAngle: .degrees(rotation),
+                            endAngle: .degrees(rotation + 360)
+                        ),
+                        lineWidth: isActive ? 2 : 0
+                    )
+            )
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        AngularGradient(
+                            colors: [Color.clarityBlue, Color.clarityPurple, Color.clarityBlue],
+                            center: .center,
+                            startAngle: .degrees(rotation),
+                            endAngle: .degrees(rotation + 360)
+                        ),
+                        lineWidth: 4
+                    )
+                    .blur(radius: 10)
+                    .opacity(isActive ? 0.5 : 0)
+            )
+            .onAppear {
+                withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
+                    rotation = 360
+                }
+            }
     }
 }
 
 // MARK: - Extensions
 
 extension View {
-    func cardStyle() -> some View {
-        modifier(CardStyle())
+    func cardStyle(padding: CGFloat = 16, cornerRadius: CGFloat = 20, glow: Color? = nil) -> some View {
+        modifier(CardStyle(padding: padding, cornerRadius: cornerRadius, glow: glow))
     }
-    
+
     func titleStyle() -> some View {
         self.font(.system(size: 28, weight: .bold, design: .rounded))
     }
-    
+
     func subtitleStyle() -> some View {
         self.font(.system(size: 20, weight: .semibold, design: .rounded))
             .foregroundStyle(.secondary)
+    }
+
+    /// Rotating glow border that reads as "AI is listening / active."
+    func jarvisGlow(active: Bool, cornerRadius: CGFloat = 20) -> some View {
+        modifier(JarvisGlowBorder(isActive: active, cornerRadius: cornerRadius))
     }
 }
 
@@ -134,39 +205,44 @@ struct CustomTextField: View {
     let icon: String
     let placeholder: String
     @Binding var text: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .foregroundStyle(.secondary)
                 .font(.body)
-            
+
             TextField(placeholder, text: $text)
         }
         .padding()
-        .background(Color.clarityCard)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
 struct CustomTextEditor: View {
     let title: String
     @Binding var text: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
-            
+
             TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
                 .frame(height: 100)
                 .padding(8)
-                .background(Color.clarityCard)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
         }
     }
 }
@@ -175,7 +251,7 @@ struct SelectionChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             Text(title)
@@ -184,10 +260,13 @@ struct SelectionChip: View {
                 .padding(.vertical, 10)
                 .padding(.horizontal, 16)
                 .background(
-                    isSelected ? AnyShapeStyle(Color.clarityBlue.gradient) : AnyShapeStyle(Color.clarityCard)
+                    isSelected ? AnyShapeStyle(Color.clarityBlue.gradient) : AnyShapeStyle(.ultraThinMaterial)
                 )
                 .clipShape(Capsule())
-                .shadow(color: isSelected ? Color.clarityBlue.opacity(0.3) : Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .overlay(
+                    Capsule().strokeBorder(Color.white.opacity(isSelected ? 0 : 0.1), lineWidth: 1)
+                )
+                .shadow(color: isSelected ? Color.clarityBlue.opacity(0.35) : .clear, radius: 8, x: 0, y: 3)
         }
     }
 }

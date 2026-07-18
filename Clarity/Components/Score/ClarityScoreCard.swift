@@ -129,9 +129,9 @@ struct TrendIndicator: View {
     
     private var trendText: String {
         switch trend {
-        case .up: return "+5%"
+        case .up: return "Improving"
         case .neutral: return "Steady"
-        case .down: return "-3%"
+        case .down: return "Needs focus"
         }
     }
 }
@@ -180,10 +180,11 @@ struct ScoreBreakdownView: View {
                                 score.habitScore,
                                 score.moodScore,
                                 score.momentScore,
-                                score.financeScore
+                                score.financeScore,
+                                score.fitnessScore
                             ],
-                            labels: ["Tasks", "Habits", "Mood", "Moments", "Finance"],
-                            colors: [.clarityBlue, .clarityOrange, .clarityPink, .clarityTeal, .clarityPurple]
+                            labels: ["Tasks", "Habits", "Mood", "Moments", "Finance", "Fitness"],
+                            colors: [.clarityBlue, .clarityOrange, .clarityPink, .clarityTeal, .clarityPurple, .clarityGreen]
                         )
                         .frame(width: 300, height: 300)
                     }
@@ -230,6 +231,13 @@ struct ScoreBreakdownView: View {
                                 icon: "dollarsign.circle.fill",
                                 color: .clarityPurple
                             )
+
+                            ScoreDetailCard(
+                                title: "Fitness",
+                                score: score.fitnessScore,
+                                icon: "figure.run.circle.fill",
+                                color: .clarityGreen
+                            )
                         }
                         .padding(.horizontal)
                     }
@@ -264,6 +272,7 @@ struct ScoreBreakdownView: View {
                             ImprovementRow(title: "Log your mood", points: "+5 points", icon: "face.smiling.fill", color: .clarityPink)
                             ImprovementRow(title: "Capture a moment", points: "+3 points", icon: "camera.macro.circle.fill", color: .clarityTeal)
                             ImprovementRow(title: "Log a transaction", points: "+3 points", icon: "dollarsign.circle.fill", color: .clarityPurple)
+                            ImprovementRow(title: "Log a workout", points: "+8 points", icon: "figure.run.circle.fill", color: .clarityGreen)
                         }
                         .padding(.horizontal)
                     }
@@ -292,7 +301,8 @@ struct ScoreBreakdownView: View {
             ("Habits", score.habitScore),
             ("Mood", score.moodScore),
             ("Moments", score.momentScore),
-            ("Finance", score.financeScore)
+            ("Finance", score.financeScore),
+            ("Fitness", score.fitnessScore)
         ]
         
         if let lowest = scores.min(by: { $0.1 < $1.1 }) {

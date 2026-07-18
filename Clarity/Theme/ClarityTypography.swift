@@ -37,12 +37,12 @@ extension Font {
     static let clarityInsight = Font.system(size: 15, weight: .medium, design: .rounded)
     
     // MARK: - Score Display
-    
-    /// Large score number (60pt)
-    static let clarityScoreLarge = Font.system(size: 60, weight: .bold, design: .rounded)
-    
-    /// Medium score number (40pt)
-    static let clarityScoreMedium = Font.system(size: 40, weight: .bold, design: .rounded)
+
+    /// Large score number (60pt) - monospaced digits for a HUD-readout feel
+    static let clarityScoreLarge = Font.system(size: 60, weight: .bold, design: .rounded).monospacedDigit()
+
+    /// Medium score number (40pt) - monospaced digits for a HUD-readout feel
+    static let clarityScoreMedium = Font.system(size: 40, weight: .bold, design: .rounded).monospacedDigit()
 }
 
 // MARK: - Text View Modifiers
@@ -54,12 +54,12 @@ extension View {
             .font(.clarityHero)
             .foregroundStyle(.primary)
     }
-    
+
     /// Apply insight style with accent color
     func insightStyle() -> some View {
         self
             .font(.clarityInsight)
-            .foregroundStyle(Color(hex: "#F87171"))
+            .foregroundStyle(Color(hex: "#FFA98F"))
     }
 }
 

@@ -22,7 +22,17 @@ class WidgetDataUpdater {
                     predicate: #Predicate { $0.ownerEmail == userEmail }
                 )
                 let checkins = try context.fetch(checkinDescriptor)
-                
+
+                let workoutDescriptor = FetchDescriptor<Workout>(
+                    predicate: #Predicate { $0.ownerEmail == userEmail }
+                )
+                let workouts = (try? context.fetch(workoutDescriptor)) ?? []
+
+                let bodyMetricDescriptor = FetchDescriptor<BodyMetric>(
+                    predicate: #Predicate { $0.ownerEmail == userEmail }
+                )
+                let bodyMetrics = (try? context.fetch(bodyMetricDescriptor)) ?? []
+
                 // Calculate today's tasks
                 let calendar = Calendar.current
                 let todayTasks = tasks.filter { task in
@@ -52,7 +62,9 @@ class WidgetDataUpdater {
                     checkins: checkins,
                     moodEntries: [],
                     moments: [],
-                    transactions: []
+                    transactions: [],
+                    workouts: workouts,
+                    bodyMetrics: bodyMetrics
                 )
                 
                 // Prepare upcoming tasks (top 5, sorted by completion and due time)

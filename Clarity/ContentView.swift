@@ -594,47 +594,44 @@ struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     
     let userEmail: String
-    @State private var selectedTab: Tab = .home
+    @State private var selectedTab: Tab = .dashboard
     @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
     @State private var showTutorial = false
-    
+
     enum Tab {
-        case home, focus, habits, moments, money
+        case dashboard, assistant, profile
     }
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView(userEmail: userEmail)
+            DashboardView(userEmail: userEmail, selectedTab: $selectedTab)
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
                 }
-                .tag(Tab.home)
-            
-            EnhancedTodayTab(userEmail: userEmail)
+                .tag(Tab.dashboard)
+
+            AssistantView(userEmail: userEmail)
                 .tabItem {
-                    Label("Focus", systemImage: "target")
+                    Label("Assistant", systemImage: "sparkles")
                 }
-                .tag(Tab.focus)
-            
-            EnhancedHabitsTab(userEmail: userEmail)
+                .tag(Tab.assistant)
+
+            ProfileView(userEmail: userEmail)
                 .tabItem {
-                    Label("Habits", systemImage: "repeat.circle.fill")
+                    Label("Profile", systemImage: "person.crop.circle.fill")
                 }
-                .tag(Tab.habits)
-            
-            EnhancedMomentsTab(userEmail: userEmail)
-                .tabItem {
-                    Label("Moments", systemImage: "sparkles")
-                }
-                .tag(Tab.moments)
-            
-            EnhancedFinanceTab(userEmail: userEmail)
-                .tabItem {
-                    Label("Money", systemImage: "banknote.fill")
-                }
-                .tag(Tab.money)
+                .tag(Tab.profile)
         }
         .tint(Color.clarityBlue)
+        .overlay(alignment: .bottom) {
+            if selectedTab != .assistant {
+                AssistantDockBar {
+                    withAnimation { selectedTab = .assistant }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 78)
+            }
+        }
         .sheet(isPresented: $showTutorial) {
             FirstLaunchTutorial()
                 .onDisappear {
@@ -644,7 +641,7 @@ struct RootTabView: View {
         .onAppear {
             // Update widget data when app starts
             WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
-            
+
             // Show tutorial on first launch
             if !hasSeenTutorial {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -813,8 +810,6 @@ struct OnboardingFlow: View {
     @State private var inputText: String = ""
     @State private var step = 0
     @State private var isTyping = false
-    @FocusState private var isInputFocused: Bool
-    @State private var glowRotation: Double = 0
     
     // User Data
     @State private var biggestPriority = ""
@@ -956,84 +951,11 @@ struct OnboardingFlow: View {
                             }
                         }
                         
-                        HStack(alignment: .bottom, spacing: 12) {
-                            TextField(placeholderText, text: $inputText, axis: .vertical)
-                                .focused($isInputFocused)
-                                .padding(12)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
-                                .lineLimit(1...5)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .strokeBorder(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: isInputFocused ? 2 : 0
-                                        )
-                                )
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: 4
-                                        )
-                                        .blur(radius: 8) // Inner glow
-                                        .opacity(isInputFocused ? 0.6 : 0)
-                                )
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: 4
-                                        )
-                                        .blur(radius: 16) // Outer glow
-                                        .opacity(isInputFocused ? 0.4 : 0)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: isInputFocused ? 0 : 1)
-                                )
-                                .onAppear {
-                                    withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
-                                        glowRotation = 360
-                                    }
-                                }
-                            
-                            Button(action: { sendMessage(inputText) }) {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(inputText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.5) : Color.clarityBlue)
-                            }
-                            .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+                        ChatInputBar(placeholder: placeholderText, text: $inputText) { text in
+                            sendMessage(text)
                         }
                         .padding(16)
-                        
+
                         // Disclaimer
                         Text("* Guided reflection using pre-selected questions")
                             .font(.caption2)
@@ -1192,62 +1114,9 @@ struct OnboardingFlow: View {
     }
 }
 
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let text: String
-    let isAI: Bool
-}
-
-// MARK: - Chat Components
-
-struct ChatBubble: View {
-    let text: String
-    let isAI: Bool
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if !isAI { Spacer() }
-            
-            Text(text)
-                .font(.body)
-                .lineSpacing(4)
-                .padding(16)
-                .background(isAI ? Color.clarityCard : Color.clarityBlue)
-                .foregroundStyle(isAI ? Color.primary : Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-            
-            if isAI { Spacer() }
-        }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, alignment: isAI ? .leading : .trailing)
-    }
-}
-
-struct TypingIndicator: View {
-    @State private var offset: CGFloat = 0
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<3) { i in
-                Circle()
-                    .fill(Color.secondary.opacity(0.5))
-                    .frame(width: 8, height: 8)
-                    .offset(y: offset)
-                    .animation(
-                        .easeInOut(duration: 0.5)
-                        .repeatForever()
-                        .delay(Double(i) * 0.2),
-                        value: offset
-                    )
-            }
-        }
-        .padding(16)
-        .background(Color.clarityCard)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .onAppear { offset = -5 }
-    }
-}
+// ChatMessage, ChatBubble, and TypingIndicator now live in
+// Components/Shared/ChatComponents.swift so onboarding, the weekly review,
+// and the Jarvis assistant all share one styled chat primitive.
 
 // MARK: - Completion Feature Card
 struct CompletionFeatureCard: View {

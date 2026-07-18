@@ -26,14 +26,17 @@ struct ClarityApp: App {
             WeeklyReview.self,
             Budget.self,
             Insight.self,
-            ClarityScore.self
+            ClarityScore.self,
+            Workout.self,
+            BodyMetric.self,
+            AssistantMessage.self
         ])
-        
+
         // Try persistent storage first
         let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        
+
         // Check if we need to reset due to schema changes
-        let currentSchemaVersion = 3 // Incremented for TestFlight release
+        let currentSchemaVersion = 4 // Jarvis redesign: fitness + assistant models added
         let savedVersion = UserDefaults.standard.integer(forKey: "SchemaVersion")
         
         if savedVersion < currentSchemaVersion {
@@ -96,6 +99,8 @@ struct ClarityApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
+                .tint(Color.clarityBlue)
                 .onAppear {
                     cleanupOldTasks()
                     initializeNotifications()

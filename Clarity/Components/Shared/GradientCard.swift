@@ -33,32 +33,38 @@ struct GradientCard<Content: View>: View {
     }
 }
 
-// MARK: - Soft Card (Material Background)
+// MARK: - Soft Card (Glass Background)
 struct SoftCard<Content: View>: View {
     let content: Content
     var cornerRadius: CGFloat = 16
-    
+    var glow: Color? = nil
+
     init(
         cornerRadius: CGFloat = 16,
+        glow: Color? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.cornerRadius = cornerRadius
+        self.glow = glow
         self.content = content()
     }
-    
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
-            
+
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.claritySurface.opacity(0.45))
+
             content
                 .padding()
         }
         .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        .shadow(color: (glow ?? .black).opacity(glow == nil ? 0.3 : 0.35), radius: glow == nil ? 10 : 20, x: 0, y: glow == nil ? 4 : 8)
     }
 }
 
@@ -66,26 +72,26 @@ struct SoftCard<Content: View>: View {
 struct InsightCard: View {
     let insight: String
     var icon: String = "lightbulb.fill"
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title3)
                 .foregroundStyle(LinearGradient.clarityInsight)
-            
+
             Text(insight)
                 .font(.clarityInsight)
                 .foregroundStyle(.primary)
-            
+
             Spacer()
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(hex: "#FEF2F2"))
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(LinearGradient.clarityInsight, lineWidth: 1.5)
         )
     }

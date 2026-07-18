@@ -3,8 +3,7 @@ import SwiftData
 
 struct ProfileView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    
+
     let userEmail: String
     @Query private var profiles: [UserProfile]
     
@@ -140,11 +139,6 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
             .sheet(isPresented: $showWeeklyReview) {
                 WeeklyReviewView(userEmail: userEmail)
             }
@@ -166,10 +160,7 @@ struct ProfileView: View {
     private func signOut() {
         // Clear session
         AuthManager.shared.logout()
-        
-        // Dismiss profile view
-        dismiss()
-        
+
         // Force app to restart by exiting to root
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first {
