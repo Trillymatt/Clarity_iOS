@@ -365,8 +365,8 @@ struct HabitsWidgetEntryView: View {
             .containerBackground(for: .widget) {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.9, green: 0.5, blue: 0.7),
-                        Color(red: 0.7, green: 0.3, blue: 0.9)
+                        Color(red: 0.1, green: 0.03, blue: 0.16),
+                        Color(red: 0.22, green: 0.06, blue: 0.32)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -376,8 +376,8 @@ struct HabitsWidgetEntryView: View {
             ZStack {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.9, green: 0.5, blue: 0.7),
-                        Color(red: 0.7, green: 0.3, blue: 0.9)
+                        Color(red: 0.1, green: 0.03, blue: 0.16),
+                        Color(red: 0.22, green: 0.06, blue: 0.32)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

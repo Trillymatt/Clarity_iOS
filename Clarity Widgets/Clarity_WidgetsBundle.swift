@@ -14,5 +14,6 @@ struct Clarity_WidgetsBundle: WidgetBundle {
         ClarityWidget()
         TasksWidget()
         HabitsWidget()
+        FitnessWidget()
     }
 }

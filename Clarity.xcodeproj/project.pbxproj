@@ -463,6 +463,10 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Clarity reads your steps, workouts, heart rate, and sleep from Health so your Clarity Score and Jarvis assistant can reflect your real activity.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Clarity can save workouts you log back to Health so they stay in sync with your other fitness apps.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clarity uses the microphone so you can talk to Jarvis instead of typing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clarity converts your voice to text so Jarvis can understand what you say.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -509,6 +513,10 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Clarity reads your steps, workouts, heart rate, and sleep from Health so your Clarity Score and Jarvis assistant can reflect your real activity.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Clarity can save workouts you log back to Health so they stay in sync with your other fitness apps.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clarity uses the microphone so you can talk to Jarvis instead of typing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clarity converts your voice to text so Jarvis can understand what you say.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

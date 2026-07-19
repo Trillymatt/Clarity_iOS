@@ -435,7 +435,41 @@ struct AddHabitSheet: View {
                                 .disabled(isGenerating || name.isEmpty)
                             }
                         }
-                        
+
+                        // Quick-start templates (only when creating fresh)
+                        if habitToEdit == nil {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Quick Start")
+                                    .font(.headline)
+                                    .padding(.horizontal, 4)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(HabitTemplates.all) { template in
+                                            Button(action: { applyTemplate(template) }) {
+                                                VStack(spacing: 6) {
+                                                    Text(template.emoji)
+                                                        .font(.system(size: 22))
+                                                    Text(template.name)
+                                                        .font(.caption2.bold())
+                                                        .foregroundStyle(.primary)
+                                                        .lineLimit(1)
+                                                }
+                                                .frame(width: 84, height: 64)
+                                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.horizontal, 4)
+                                }
+                            }
+                        }
+
                         // Icon Selection
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Icon")
@@ -566,6 +600,15 @@ struct AddHabitSheet: View {
         }
     }
     
+    private func applyTemplate(_ template: HabitTemplate) {
+        withAnimation {
+            name = template.name
+            selectedIcon = template.icon
+            goal = template.goalPerDay
+            days = Set(template.daysOfWeek)
+        }
+    }
+
     private func generateHabit() {
         guard !name.isEmpty else { return }
         isGenerating = true

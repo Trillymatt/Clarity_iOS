@@ -156,145 +156,71 @@ struct MediumClarityWidgetView: View {
 
 struct LargeClarityWidgetView: View {
     var entry: ClarityEntry
-    
+
     var taskProgress: Double {
-        guard entry.data.todayTasksTotal > 0 else { return 0 }
-        return Double(entry.data.todayTasksCompleted) / Double(entry.data.todayTasksTotal)
+        Double(entry.data.tasksCompletedToday) / Double(max(1, entry.data.dailyTaskGoal))
     }
-    
-    var habitProgress: Double {
-        guard entry.data.primaryHabitGoal > 0 else { return 0 }
-        return Double(entry.data.primaryHabitProgress) / Double(entry.data.primaryHabitGoal)
+
+    var stepProgress: Double {
+        Double(entry.data.todaySteps ?? 0) / Double(max(1, entry.data.stepGoal))
     }
-    
+
+    var workoutProgress: Double {
+        Double(entry.data.weekWorkouts) / Double(max(1, entry.data.weeklyWorkoutGoal))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Clarity")
+                    Text("Jarvis")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
-                    Text("Today's Progress")
+                    Text("Today's Goals")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white.opacity(0.8))
                 }
-                
+
                 Spacer()
-                
+
                 // Score Badge
                 Text("\(entry.data.clarityScore)")
-                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundColor(.white)
-                    .frame(width: 70, height: 70)
+                    .frame(width: 60, height: 60)
                     .background(
                         Circle()
-                            .fill(Color.white.opacity(0.15))
+                            .fill(Color.white.opacity(0.12))
                     )
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 16)
-            
-            // Stats Cards
-            VStack(spacing: 12) {
-                // Tasks Card
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                        )
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Tasks Today")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                        Text(entry.data.taskCompletionText)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Spacer()
-                    
-                    // Progress Circle
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white.opacity(0.2), lineWidth: 4)
-                            .frame(width: 40, height: 40)
-                        
-                        Circle()
-                            .trim(from: 0, to: taskProgress)
-                            .stroke(Color.white, lineWidth: 4)
-                            .frame(width: 40, height: 40)
-                            .rotationEffect(.degrees(-90))
-                        
-                        Text("\(Int(taskProgress * 100))%")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.1))
-                )
-                
-                // Habit Card
-                if let habitName = entry.data.primaryHabitName {
-                    HStack(spacing: 12) {
-                        Image(systemName: entry.data.primaryHabitIcon ?? "star.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(0.15))
-                            )
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(habitName)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
-                                .lineLimit(1)
-                            Text("\(entry.data.primaryHabitProgress) of \(entry.data.primaryHabitGoal)")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                        
-                        Spacer()
-                        
-                        // Progress Circle
-                        ZStack {
-                            Circle()
-                                .stroke(Color.white.opacity(0.2), lineWidth: 4)
-                                .frame(width: 40, height: 40)
-                            
-                            Circle()
-                                .trim(from: 0, to: habitProgress)
-                                .stroke(Color.white, lineWidth: 4)
-                                .frame(width: 40, height: 40)
-                                .rotationEffect(.degrees(-90))
-                            
-                            Text("\(Int(habitProgress * 100))%")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.1))
-                    )
-                }
+
+            // Goal Rings
+            HStack(spacing: 16) {
+                goalCard(icon: "figure.walk", title: "Steps", value: entry.data.todaySteps.map { "\($0)" } ?? "—", progress: stepProgress, color: .green)
+                goalCard(icon: "figure.run", title: "Workouts", value: "\(entry.data.weekWorkouts)/\(entry.data.weeklyWorkoutGoal)", progress: workoutProgress, color: .cyan)
+                goalCard(icon: "checkmark.circle.fill", title: "Tasks", value: "\(entry.data.tasksCompletedToday)/\(entry.data.dailyTaskGoal)", progress: taskProgress, color: .blue)
             }
             .padding(.horizontal, 20)
-            
+
+            if entry.data.workoutStreak > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 13))
+                    Text("\(entry.data.workoutStreak)-day workout streak")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+            }
+
             Spacer()
-            
+
             // Footer
             Text("Updated \(entry.date, style: .relative)")
                 .font(.system(size: 11, weight: .medium))
@@ -302,6 +228,35 @@ struct LargeClarityWidgetView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 16)
         }
+    }
+
+    private func goalCard(icon: String, title: String, value: String, progress: Double, color: Color) -> some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.2), lineWidth: 5)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .trim(from: 0, to: min(1, progress))
+                    .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .frame(width: 56, height: 56)
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.white)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.08)))
     }
 }
 
@@ -343,8 +298,8 @@ struct WidgetEntryView: View {
             .containerBackground(for: .widget) {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.4, green: 0.6, blue: 1.0),
-                        Color(red: 0.6, green: 0.4, blue: 1.0)
+                        Color(red: 0.02, green: 0.04, blue: 0.1),
+                        Color(red: 0.16, green: 0.08, blue: 0.28)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -354,8 +309,8 @@ struct WidgetEntryView: View {
             ZStack {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.4, green: 0.6, blue: 1.0),
-                        Color(red: 0.6, green: 0.4, blue: 1.0)
+                        Color(red: 0.02, green: 0.04, blue: 0.1),
+                        Color(red: 0.16, green: 0.08, blue: 0.28)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

@@ -24,7 +24,10 @@ struct InsightBadge: View {
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(colorForType.opacity(0.15))
+                .fill(colorForType.opacity(0.16))
+        )
+        .overlay(
+            Capsule().strokeBorder(colorForType.opacity(0.35), lineWidth: 1)
         )
     }
     

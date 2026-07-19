@@ -97,58 +97,7 @@ struct EnhancedHabitsTab: View {
     
     /// Calculate the current streak for a habit
     private func calculateStreak(for habit: Habit, includingToday: Bool = false) -> Int {
-        let calendar = Calendar.current
-        let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
-        
-        guard !habitCheckins.isEmpty else { return includingToday ? 1 : 0 }
-        
-        // Get all unique days with check-ins, sorted descending
-        var checkinDays = Set(habitCheckins.map { calendar.startOfDay(for: $0.date) })
-        
-        // If including today (for celebration), add today
-        if includingToday {
-            checkinDays.insert(calendar.startOfDay(for: Date()))
-        }
-        
-        let sortedDays = checkinDays.sorted(by: >)
-        guard let mostRecentDay = sortedDays.first else { return includingToday ? 1 : 0 }
-        
-        let today = calendar.startOfDay(for: Date())
-        
-        // If most recent check-in isn't today or yesterday, streak is broken
-        let daysSinceLastCheckin = calendar.dateComponents([.day], from: mostRecentDay, to: today).day ?? 0
-        if daysSinceLastCheckin > 1 {
-            return includingToday ? 1 : 0
-        }
-        
-        // Count consecutive days backwards
-        var streak = 0
-        var currentDay = mostRecentDay
-        
-        for day in sortedDays {
-            if day == currentDay {
-                streak += 1
-                // Move to previous day
-                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay)!
-            } else {
-                // Gap in streak
-                break
-            }
-        }
-        
-        return streak
-    }
-    
-    private func moveHabit(from source: IndexSet, to destination: Int) {
-        var reorderedHabits = otherHabits
-        reorderedHabits.move(fromOffsets: source, toOffset: destination)
-        
-        // Update display orders (primary = 0, others start from 1)
-        for (index, habit) in reorderedHabits.enumerated() {
-            habit.displayOrder = index + 1
-        }
-        
-        try? context.save()
+        HabitStreakCalculator.currentStreak(checkins: checkins, habitID: habit.id, includingToday: includingToday)
     }
     
     // MARK: - Body
@@ -221,16 +170,16 @@ struct EnhancedHabitsTab: View {
                                             userEmail: userEmail
                                         )
                                         .id(habit.id)
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        .contextMenu {
                                             Button(role: .destructive) {
                                                 withAnimation {
                                                     // Delete associated check-ins first
                                                     let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
                                                     habitCheckins.forEach { context.delete($0) }
-                                                    
+
                                                     // Then delete the habit
                                                     context.delete(habit)
-                                                    
+
                                                     // Save and refresh
                                                     try? context.save()
                                                 }
@@ -239,7 +188,6 @@ struct EnhancedHabitsTab: View {
                                             }
                                         }
                                     }
-                                    .onMove(perform: moveHabit)
                                 }
                             }
                         
@@ -356,7 +304,7 @@ struct PrimaryHabitCard: View {
             switch iconName {
             case "figure.run", "figure.walk": return "🏃‍♂️"
             case "book.fill", "book": return "📚"
-            case "waterbottle.fill", "waterbottle": return "💧"
+            case "waterbottle.fill", "waterbottle", "drop.fill": return "💧"
             case "figure.mind.and.body": return "🧘‍♀️"
             case "bed.double.fill", "bed": return "😴"
             case "fork.knife": return "🍽️"
@@ -364,6 +312,8 @@ struct PrimaryHabitCard: View {
             case "brain.head.profile": return "🧠"
             case "heart.fill", "heart": return "❤️"
             case "sun.max.fill", "sun": return "☀️"
+            case "flame.fill": return "🔥"
+            case "leaf.fill": return "🌿"
             default: return "⭐"
             }
         }
@@ -440,7 +390,7 @@ struct EnhancedHabitRow: View {
             switch iconName {
             case "figure.run", "figure.walk": return "🏃‍♂️"
             case "book.fill", "book": return "📚"
-            case "waterbottle.fill", "waterbottle": return "💧"
+            case "waterbottle.fill", "waterbottle", "drop.fill": return "💧"
             case "figure.mind.and.body": return "🧘‍♀️"
             case "bed.double.fill", "bed": return "😴"
             case "fork.knife": return "🍽️"
@@ -448,6 +398,8 @@ struct EnhancedHabitRow: View {
             case "brain.head.profile": return "🧠"
             case "heart.fill", "heart": return "❤️"
             case "sun.max.fill", "sun": return "☀️"
+            case "flame.fill": return "🔥"
+            case "leaf.fill": return "🌿"
             default: return "⭐"
             }
         }

@@ -3,14 +3,14 @@ import SwiftData
 
 struct ProfileView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    
+
     let userEmail: String
     @Query private var profiles: [UserProfile]
     
     @State private var isEditing = false
     @State private var editName = ""
     @State private var showWeeklyReview = false
+    @State private var exportURL: URL?
     
     init(userEmail: String) {
         self.userEmail = userEmail
@@ -109,6 +109,22 @@ struct ProfileView: View {
                     }
                 }
                 
+                // Data Section
+                Section("Data") {
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                        }
+                    } else {
+                        HStack {
+                            Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                }
+
                 // About Section
                 Section("About") {
                     NavigationLink {
@@ -117,7 +133,7 @@ struct ProfileView: View {
                         Label("Privacy Policy", systemImage: "hand.raised.fill")
                             .foregroundStyle(.primary)
                     }
-                    
+
                     HStack {
                         Label("Version", systemImage: "info.circle.fill")
                         Spacer()
@@ -140,16 +156,15 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .contentMargins(.bottom, 90, for: .scrollContent)
             .sheet(isPresented: $showWeeklyReview) {
                 WeeklyReviewView(userEmail: userEmail)
             }
             .onAppear {
                 editName = userName
+                if exportURL == nil {
+                    exportURL = DataExporter.exportCSV(context: context, userEmail: userEmail)
+                }
             }
         }
     }
@@ -166,10 +181,7 @@ struct ProfileView: View {
     private func signOut() {
         // Clear session
         AuthManager.shared.logout()
-        
-        // Dismiss profile view
-        dismiss()
-        
+
         // Force app to restart by exiting to root
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first {

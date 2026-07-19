@@ -22,7 +22,19 @@ class WidgetDataUpdater {
                     predicate: #Predicate { $0.ownerEmail == userEmail }
                 )
                 let checkins = try context.fetch(checkinDescriptor)
-                
+
+                let workoutDescriptor = FetchDescriptor<Workout>(
+                    predicate: #Predicate { $0.ownerEmail == userEmail }
+                )
+                let workouts = (try? context.fetch(workoutDescriptor)) ?? []
+
+                let bodyMetricDescriptor = FetchDescriptor<BodyMetric>(
+                    predicate: #Predicate { $0.ownerEmail == userEmail }
+                )
+                let bodyMetrics = (try? context.fetch(bodyMetricDescriptor)) ?? []
+
+                let goals = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
+
                 // Calculate today's tasks
                 let calendar = Calendar.current
                 let todayTasks = tasks.filter { task in
@@ -52,8 +64,33 @@ class WidgetDataUpdater {
                     checkins: checkins,
                     moodEntries: [],
                     moments: [],
-                    transactions: []
+                    transactions: [],
+                    workouts: workouts,
+                    bodyMetrics: bodyMetrics,
+                    goals: goals
                 )
+
+                // Fitness snapshot for the Fitness/Goals widgets
+                let todaySteps = bodyMetrics.first { calendar.isDateInToday($0.date) }?.steps
+                let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                let weekWorkouts = workouts.filter { $0.date >= weekAgo }.count
+
+                let workoutDays = Set(workouts.map { calendar.startOfDay(for: $0.date) }).sorted(by: >)
+                var workoutStreak = 0
+                if let mostRecent = workoutDays.first {
+                    let daysSince = calendar.dateComponents([.day], from: mostRecent, to: calendar.startOfDay(for: Date())).day ?? 0
+                    if daysSince <= 1 {
+                        var cursor = mostRecent
+                        for day in workoutDays {
+                            if day == cursor {
+                                workoutStreak += 1
+                                cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+                            } else {
+                                break
+                            }
+                        }
+                    }
+                }
                 
                 // Prepare upcoming tasks (top 5, sorted by completion and due time)
                 let sortedTasks = todayTasks
@@ -104,7 +141,7 @@ class WidgetDataUpdater {
                     }
                 
                 // Create widget data
-                let widgetData = WidgetData(
+                var widgetData = WidgetData(
                     clarityScore: Int(score.totalScore),
                     todayTasksCompleted: todayCompleted,
                     todayTasksTotal: max(todayTotal, 1), // Prevent division by zero
@@ -116,7 +153,14 @@ class WidgetDataUpdater {
                     upcomingTasks: Array(sortedTasks),
                     activeHabits: Array(activeHabitsData)
                 )
-                
+                widgetData.todaySteps = todaySteps
+                widgetData.stepGoal = goals.dailyStepGoal
+                widgetData.weekWorkouts = weekWorkouts
+                widgetData.weeklyWorkoutGoal = goals.weeklyWorkoutGoal
+                widgetData.tasksCompletedToday = todayCompleted
+                widgetData.dailyTaskGoal = goals.dailyTaskGoal
+                widgetData.workoutStreak = workoutStreak
+
                 // Save to shared storage
                 WidgetDataManager.shared.saveWidgetData(widgetData)
                 

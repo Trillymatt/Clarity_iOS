@@ -17,12 +17,12 @@
 1. Select the **Clarity** target in Xcode
 2. Go to **Signing & Capabilities**
 3. Click **+ Capability** → **App Groups**
-4. Click **+** and add: `group.com.clarity.app`
+4. Click **+** and add: `group.com.mattknorman.Clarity.shared`
 5. Select the **Clarity Widgets** target
 6. Repeat steps 2-4 with the **exact same** group identifier
 
 > [!IMPORTANT]
-> Both targets must use the **identical** App Group identifier: `group.com.clarity.app`
+> Both targets must use the **identical** App Group identifier: `group.com.mattknorman.Clarity.shared`
 
 ### Step 2: Add WidgetDataManager.swift to Widget Target
 
@@ -123,7 +123,7 @@ private func toggleCompletion() {
 - Ensure shared types (like Color extensions) are available to widget target
 
 ### Widget displays but shows errors
-- Check the App Group identifier matches exactly: `group.com.clarity.app`
+- Check the App Group identifier matches exactly: `group.com.mattknorman.Clarity.shared`
 - Verify UserDefaults suite name in `WidgetDataManager` matches the App Group
 
 ---

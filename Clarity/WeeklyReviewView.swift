@@ -22,11 +22,8 @@ struct WeeklyReviewView: View {
     @State private var messages: [ChatMessage] = []
     @State private var inputText = ""
     @State private var isTyping = false
-    @FocusState private var isInputFocused: Bool
-    @State private var glowRotation = 0.0
     
     // AI Extraction State
-    @State private var showExtractionPreview = false
     @State private var extractedItems: ExtractedItems?
     @State private var isExtracting = false
     @State private var reviewSaved = false // Prevent double-saving
@@ -209,87 +206,8 @@ struct WeeklyReviewView: View {
                         .padding(.top, 12)
                     } else {
                         // Text Input
-                        HStack(alignment: .bottom, spacing: 12) {
-                            TextField(placeholderForCurrentStep, text: $inputText, axis: .vertical)
-                                .focused($isInputFocused)
-                                .padding(12)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
-                                .lineLimit(1...5)
-                                .submitLabel(.send)
-                                .onSubmit {
-                                    if !inputText.isEmpty {
-                                        sendMessage(inputText)
-                                    }
-                                }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .strokeBorder(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: isInputFocused ? 2 : 0
-                                        )
-                                )
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: 4
-                                        )
-                                        .blur(radius: 8) // Inner glow
-                                        .opacity(isInputFocused ? 0.6 : 0)
-                                )
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(
-                                            AngularGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.clarityBlue,
-                                                    Color.clarityPurple,
-                                                    Color.clarityBlue
-                                                ]),
-                                                center: .center,
-                                                startAngle: .degrees(glowRotation),
-                                                endAngle: .degrees(glowRotation + 360)
-                                            ),
-                                            lineWidth: 4
-                                        )
-                                        .blur(radius: 16) // Outer glow
-                                        .opacity(isInputFocused ? 0.4 : 0)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: isInputFocused ? 0 : 1)
-                                )
-                                .onAppear {
-                                    withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
-                                        glowRotation = 360
-                                    }
-                                }
-                            
-                            Button(action: { sendMessage(inputText) }) {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(inputText.isEmpty ? Color.secondary.opacity(0.3) : Color.clarityBlue)
-                            }
-                            .disabled(inputText.isEmpty)
+                        ChatInputBar(placeholder: placeholderForCurrentStep, text: $inputText) { text in
+                            sendMessage(text)
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
@@ -468,31 +386,6 @@ struct WeeklyReviewView: View {
         }
     }
     
-    private func saveReview() {
-        let goalsList = goals.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-        
-        let review = WeeklyReview(
-            ownerEmail: userEmail,
-            date: Date(),
-            wins: wins,
-            challenges: challenges,
-            learnings: learnings,
-            improvements: "",
-            habitAdherence: 0, // Not explicitly asked, could infer or remove
-            topGoals: goalsList,
-            mainFocus: mainFocus,
-            habitFocus: habitFocus,
-            weekRating: rating
-        )
-        context.insert(review)
-        try? context.save()
-        
-        // Save timestamp for last weekly review
-        UserDefaults.standard.set(Date(), forKey: "lastWeeklyReview")
-        
-        dismiss()
-    }
-    
     private func saveReviewSilently() {
         guard !reviewSaved else {
             print("⚠️ Review already saved, skipping")
@@ -547,8 +440,6 @@ struct WeeklyReviewView: View {
                     
                     if items.isEmpty {
                         print("⚠️ No items extracted")
-                    } else {
-                        showExtractionPreview = true
                     }
                 }
             } catch {

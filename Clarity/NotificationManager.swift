@@ -54,6 +54,14 @@ struct NotificationMessages {
         ("Quick Check-in", "How's your focus? {count} tasks left today.")
     ]
     
+    // MARK: - Evening Recap Messages
+    static let eveningRecap = [
+        ("Evening Recap 🌙", "{summary}"),
+        ("How Today Went", "{summary}"),
+        ("Wind Down", "{summary}"),
+        ("Day in Review", "{summary}")
+    ]
+
     // MARK: - Gratitude Prompt Messages
     static let gratitudePrompt = [
         ("Gratitude Moment", "What's one thing you're grateful for today?"),
@@ -127,17 +135,20 @@ class NotificationManager: ObservableObject {
     func scheduleHabitReminder(habitId: UUID, habitName: String, reminderTime: Date, daysOfWeek: [Int]) {
         // Cancel existing notifications for this habit
         cancelHabitReminder(habitId: habitId)
-        
+
         let calendar = Calendar.current
         let components = calendar.dateComponents([.hour, .minute], from: reminderTime)
-        
+
         guard let hour = components.hour, let minute = components.minute else {
             print("Invalid reminder time")
             return
         }
-        
-        // If no specific days are set, schedule for every day
-        let scheduledDays = daysOfWeek.isEmpty ? [1, 2, 3, 4, 5, 6, 7] : daysOfWeek
+
+        // Habit.daysOfWeek is stored 0-indexed (0 = Sunday ... 6 = Saturday, matching the
+        // day picker in AddHabitSheet and AIService's habit-generation prompt), but
+        // DateComponents.weekday is Apple's 1-indexed convention (1 = Sunday ... 7 =
+        // Saturday). Convert here so reminders fire on the day the user actually picked.
+        let scheduledDays = daysOfWeek.isEmpty ? [1, 2, 3, 4, 5, 6, 7] : daysOfWeek.map { $0 + 1 }
         
         // Schedule a notification for each day of the week
         for day in scheduledDays {
@@ -342,7 +353,10 @@ class NotificationManager: ObservableObject {
         content.categoryIdentifier = "MORNING_MOTIVATION"
         content.userInfo = ["type": "morning"]
         
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        // Not repeating: content here is generated from today's real data, so
+        // this is refreshed with fresh numbers every time the app becomes
+        // active (see NotificationScheduler) rather than looping stale text.
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let identifier = "morning-motivation-daily"
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         
@@ -392,10 +406,12 @@ class NotificationManager: ObservableObject {
         content.categoryIdentifier = "AFTERNOON_REMINDER"
         content.userInfo = ["type": "afternoon"]
         
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        // Not repeating — refreshed with real numbers each time the app
+        // becomes active (see NotificationScheduler).
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let identifier = "afternoon-reminder-daily"
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        
+
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("Failed to schedule afternoon reminder: \(error)")
@@ -404,10 +420,63 @@ class NotificationManager: ObservableObject {
             }
         }
     }
-    
+
     func cancelAfternoonReminder() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["afternoon-reminder-daily"])
         print("Cancelled afternoon reminder notifications")
+    }
+
+    // MARK: - Evening Recap Notifications
+
+    /// A real, data-grounded wind-down notification — "here's how today went"
+    /// plus the single most important thing to know before tomorrow, instead
+    /// of a generic "check in" nudge.
+    func scheduleEveningRecap(enabled: Bool, time: Date? = nil, summary: String) {
+        if !enabled {
+            cancelEveningRecap()
+            return
+        }
+
+        cancelEveningRecap()
+
+        let calendar = Calendar.current
+        var dateComponents = DateComponents()
+        if let time = time {
+            dateComponents.hour = calendar.component(.hour, from: time)
+            dateComponents.minute = calendar.component(.minute, from: time)
+        } else {
+            dateComponents.hour = 21 // Default 9 PM
+            dateComponents.minute = 0
+        }
+
+        let message = NotificationMessages.random(from: NotificationMessages.eveningRecap)
+        let body = message.body.replacingOccurrences(of: "{summary}", with: summary)
+
+        let content = UNMutableNotificationContent()
+        content.title = message.title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "EVENING_RECAP"
+        content.userInfo = ["type": "eveningRecap"]
+
+        // Not repeating — tomorrow's recap is scheduled fresh the next time
+        // the app is opened, so it always reflects that day's real data.
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let identifier = "evening-recap-daily"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to schedule evening recap: \(error)")
+            } else {
+                print("Scheduled evening recap at \(dateComponents.hour ?? 0):\(String(format: "%02d", dateComponents.minute ?? 0))")
+            }
+        }
+    }
+
+    func cancelEveningRecap() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["evening-recap-daily"])
+        print("Cancelled evening recap notifications")
     }
     
     // MARK: - Gratitude Prompt Notifications

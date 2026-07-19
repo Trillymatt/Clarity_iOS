@@ -183,33 +183,62 @@ class LifePulseDataGenerator {
         moments: [LifeMoment],
         transactions: [Transaction]
     ) -> [LifePulseDataPoint] {
+        generateData(days: 7, strideBy: 1, tasks: tasks, checkins: checkins, habits: habits, moodEntries: moodEntries, moments: moments, transactions: transactions)
+    }
+
+    /// General-purpose version behind generateWeekData — `days` is the
+    /// lookback window, `strideBy` samples every Nth day (1 = daily, 7 =
+    /// weekly) so a year-long view doesn't try to plot 365 points.
+    static func generateData(
+        days: Int,
+        strideBy: Int,
+        tasks: [TaskItem],
+        checkins: [HabitCheckin],
+        habits: [Habit],
+        moodEntries: [MoodEntry],
+        moments: [LifeMoment],
+        transactions: [Transaction]
+    ) -> [LifePulseDataPoint] {
         let calendar = Calendar.current
         let now = Date()
         var dataPoints: [LifePulseDataPoint] = []
         var hasData = false
-        
-        for dayOffset in (0..<7).reversed() {
+
+        // Built forward from 0 (today) and reversed, rather than striding
+        // backward from `days - 1`, so today is always included even when
+        // `days - 1` isn't an exact multiple of `strideBy` (e.g. the Year
+        // range's 364/7 — 363 % 7 != 0 would otherwise skip offset 0).
+        let offsetCount = (days - 1) / strideBy + 1
+        let offsets = (0..<offsetCount).map { $0 * strideBy }.reversed()
+        for dayOffset in offsets {
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
             let dayStart = calendar.startOfDay(for: date)
             let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
-            
+
             // Day label
-            let weekdayIndex = calendar.component(.weekday, from: date) - 1
-            let dayLabel = dayOffset == 0 ? "Today" : calendar.shortWeekdaySymbols[weekdayIndex]
-            
+            let dayLabel: String
+            if dayOffset == 0 {
+                dayLabel = "Today"
+            } else if strideBy >= 7 {
+                dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
+            } else {
+                let weekdayIndex = calendar.component(.weekday, from: date) - 1
+                dayLabel = calendar.shortWeekdaySymbols[weekdayIndex]
+            }
+
             // Count completed tasks
             let completedTasks = tasks.filter {
                 guard let completedDate = $0.completedDate else { return false }
                 return $0.isCompleted && completedDate >= dayStart && completedDate < dayEnd
             }.count
             if completedTasks > 0 { hasData = true }
-            
+
             // Count completed habit check-ins
             let completedHabits = checkins.filter {
                 $0.isCompleted && $0.date >= dayStart && $0.date < dayEnd
             }.count
             if completedHabits > 0 { hasData = true }
-            
+
             // Calculate day's clarity score
             let dayTasks = tasks.filter {
                 guard let dueDate = $0.dueDate else { return false }
@@ -219,7 +248,7 @@ class LifePulseDataGenerator {
             let dayMoments = moments.filter { $0.date >= dayStart && $0.date < dayEnd }
             let dayTransactions = transactions.filter { $0.date >= dayStart && $0.date < dayEnd }
             let dayCheckins = checkins.filter { $0.date >= dayStart && $0.date < dayEnd }
-            
+
             let clarityScore = ClarityScoreCalculator.calculateFullScore(
                 tasks: dayTasks,
                 habits: habits,
@@ -229,7 +258,7 @@ class LifePulseDataGenerator {
                 transactions: dayTransactions
             )
             if clarityScore.totalScore > 0 { hasData = true }
-            
+
             dataPoints.append(LifePulseDataPoint(
                 day: dayLabel,
                 taskCount: completedTasks,
@@ -237,7 +266,7 @@ class LifePulseDataGenerator {
                 clarityScore: clarityScore.totalScore
             ))
         }
-        
+
         return hasData ? dataPoints : []
     }
 }

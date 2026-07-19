@@ -12,28 +12,13 @@ import UserNotifications
 @main
 struct ClarityApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            UserProfile.self,
-            TaskItem.self,
-            Habit.self,
-            HabitCheckin.self,
-            JournalEntry.self,
-            LifeMoment.self,
-            Transaction.self,
-            FinancialGoal.self,
-            LifeAreaScore.self,
-            MoodEntry.self,
-            WeeklyReview.self,
-            Budget.self,
-            Insight.self,
-            ClarityScore.self
-        ])
-        
+        let schema = ClarityModelContainer.schema
+
         // Try persistent storage first
         let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        
+
         // Check if we need to reset due to schema changes
-        let currentSchemaVersion = 3 // Incremented for TestFlight release
+        let currentSchemaVersion = 7 // Budget now has ownerEmail (was global before)
         let savedVersion = UserDefaults.standard.integer(forKey: "SchemaVersion")
         
         if savedVersion < currentSchemaVersion {
@@ -96,6 +81,8 @@ struct ClarityApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
+                .tint(Color.clarityBlue)
                 .onAppear {
                     cleanupOldTasks()
                     initializeNotifications()
