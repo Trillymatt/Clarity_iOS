@@ -196,7 +196,12 @@ final class AssistantService {
                 "distance_miles": param("number", "Distance in miles, optional")
             ], required: ["type", "duration_minutes"]),
 
-            tool("get_summary", "Get a snapshot of the user's tasks, habits, mood, fitness, finances, and Clarity Score for today and this week. Always call this before answering questions about the user's data.", [:], required: [])
+            tool("set_goal", "Update one of the user's coaching goals.", [
+                "goal": paramEnum(["daily_steps", "weekly_workouts", "daily_tasks", "weekly_spend_limit"], "Which goal to update"),
+                "value": param("number", "The new target value")
+            ], required: ["goal", "value"]),
+
+            tool("get_summary", "Get a snapshot of the user's tasks, habits, mood, fitness, finances, current goals, and Clarity Score for today and this week. Always call this before answering questions about the user's data.", [:], required: [])
         ]
     }
 

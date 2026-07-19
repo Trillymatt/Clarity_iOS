@@ -35,6 +35,7 @@ final class ClarityToolExecutor {
         case "log_moment": return logMoment(arguments)
         case "add_transaction": return addTransaction(arguments)
         case "log_workout": return logWorkout(arguments)
+        case "set_goal": return setGoal(arguments)
         case "get_summary": return getSummary()
         default:
             return ToolExecutionResult(message: "Unknown tool: \(name)", actionSummary: nil)
@@ -155,6 +156,34 @@ final class ClarityToolExecutor {
         )
     }
 
+    private func setGoal(_ args: [String: Any]) -> ToolExecutionResult {
+        guard let goalKey = args["goal"] as? String, let value = number(args, "value") else {
+            return ToolExecutionResult(message: "Missing goal or value.", actionSummary: nil)
+        }
+        let goals = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
+        let description: String
+
+        switch goalKey {
+        case "daily_steps":
+            goals.dailyStepGoal = max(1, Int(value))
+            description = "Daily step goal set to \(goals.dailyStepGoal)."
+        case "weekly_workouts":
+            goals.weeklyWorkoutGoal = max(1, Int(value))
+            description = "Weekly workout goal set to \(goals.weeklyWorkoutGoal)."
+        case "daily_tasks":
+            goals.dailyTaskGoal = max(1, Int(value))
+            description = "Daily task goal set to \(goals.dailyTaskGoal)."
+        case "weekly_spend_limit":
+            goals.weeklySpendLimit = max(0, value)
+            description = String(format: "Weekly spending limit set to $%.0f.", goals.weeklySpendLimit)
+        default:
+            return ToolExecutionResult(message: "Unknown goal: \(goalKey)", actionSummary: nil)
+        }
+
+        save()
+        return ToolExecutionResult(message: description, actionSummary: description)
+    }
+
     // MARK: - Read-only summary
     // The model calls this before answering data questions so it never guesses.
 
@@ -170,10 +199,12 @@ final class ClarityToolExecutor {
         let transactions = fetch(Transaction.self, predicate: #Predicate<Transaction> { $0.ownerEmail == userEmail })
         let workouts = fetch(Workout.self, predicate: #Predicate<Workout> { $0.ownerEmail == userEmail })
         let bodyMetrics = fetch(BodyMetric.self, predicate: #Predicate<BodyMetric> { $0.ownerEmail == userEmail })
+        let goals = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
 
         let score = ClarityScoreCalculator.calculateFullScore(
             tasks: tasks, habits: habits, checkins: checkins, moodEntries: moods,
-            moments: moments, transactions: transactions, workouts: workouts, bodyMetrics: bodyMetrics
+            moments: moments, transactions: transactions, workouts: workouts, bodyMetrics: bodyMetrics,
+            goals: goals
         )
 
         let todayTasks = tasks.filter { !$0.isCompleted && ($0.isToday || ($0.dueDate != nil && calendar.isDateInToday($0.dueDate!))) }
@@ -186,11 +217,12 @@ final class ClarityToolExecutor {
 
         let summary = """
         Clarity Score: \(Int(score.totalScore))/100 (\(score.stateDescription))
+        Goals: \(goals.dailyStepGoal) steps/day, \(goals.weeklyWorkoutGoal) workouts/week, \(goals.dailyTaskGoal) tasks completed/day, $\(String(format: "%.0f", goals.weeklySpendLimit)) spend/week
         Tasks: \(todayTasks.count) open today, \(completedToday) completed today, \(tasks.filter { !$0.isCompleted }.count) open overall
         Habits: \(activeHabits.count) active habits: \(activeHabits.map(\.name).joined(separator: ", "))
-        Fitness: \(weekWorkouts.count) workouts in the last 7 days, today's steps: \(todaySteps.map(String.init) ?? "unknown")
+        Fitness: \(weekWorkouts.count)/\(goals.weeklyWorkoutGoal) workouts this week, today's steps: \(todaySteps.map(String.init) ?? "unknown")/\(goals.dailyStepGoal)
         Mood: \(latestMood.map { "last logged '\($0.emotion)'" } ?? "not logged recently")
-        Money: $\(String(format: "%.2f", weekSpend)) spent in the last 7 days
+        Money: $\(String(format: "%.2f", weekSpend)) of $\(String(format: "%.0f", goals.weeklySpendLimit)) weekly limit spent in the last 7 days
         Recent moments: \(moments.suffix(3).map(\.title).joined(separator: ", "))
         """
         return ToolExecutionResult(message: summary, actionSummary: nil)

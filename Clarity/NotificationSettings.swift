@@ -15,12 +15,14 @@ class NotificationSettings: ObservableObject {
     private let morningMotivationKey = "notif_morning_motivation_enabled"
     private let afternoonReminderKey = "notif_afternoon_reminder_enabled"
     private let gratitudePromptsKey = "notif_gratitude_prompts_enabled"
-    
+    private let eveningRecapKey = "notif_evening_recap_enabled"
+
     // Time keys
     private let moodCheckInTimeKey = "notif_mood_checkin_time"
     private let morningMotivationTimeKey = "notif_morning_motivation_time"
     private let afternoonReminderTimeKey = "notif_afternoon_reminder_time"
     private let gratitudePromptsTimeKey = "notif_gratitude_prompts_time"
+    private let eveningRecapTimeKey = "notif_evening_recap_time"
     
     // MARK: - Default Times
     
@@ -69,7 +71,15 @@ class NotificationSettings: ObservableObject {
             rescheduleNotification(.gratitudePrompts)
         }
     }
-    
+
+    @Published var eveningRecapEnabled: Bool {
+        didSet {
+            defaults.set(eveningRecapEnabled, forKey: eveningRecapKey)
+            rescheduleNotification(.eveningRecap)
+        }
+    }
+
+
     // Custom times
     @Published var moodCheckInTime: Date {
         didSet {
@@ -98,19 +108,27 @@ class NotificationSettings: ObservableObject {
             rescheduleNotification(.gratitudePrompts)
         }
     }
-    
+
+    @Published var eveningRecapTime: Date {
+        didSet {
+            defaults.set(eveningRecapTime, forKey: eveningRecapTimeKey)
+            rescheduleNotification(.eveningRecap)
+        }
+    }
+
     // MARK: - Notification Types
-    
+
     private enum NotificationType {
         case moodCheckIn
         case weeklyReview
         case morningMotivation
         case afternoonReminder
         case gratitudePrompts
+        case eveningRecap
     }
-    
+
     // MARK: - Initialization
-    
+
     private init() {
         // Load saved preferences
         // Existing notifications default to true, new ones default to false (opt-in)
@@ -119,16 +137,18 @@ class NotificationSettings: ObservableObject {
         self.morningMotivationEnabled = defaults.object(forKey: morningMotivationKey) as? Bool ?? false
         self.afternoonReminderEnabled = defaults.object(forKey: afternoonReminderKey) as? Bool ?? false
         self.gratitudePromptsEnabled = defaults.object(forKey: gratitudePromptsKey) as? Bool ?? false
-        
+        self.eveningRecapEnabled = defaults.object(forKey: eveningRecapKey) as? Bool ?? false
+
         // Load saved times or use defaults
         self.moodCheckInTime = defaults.object(forKey: moodCheckInTimeKey) as? Date ?? Self.defaultTime(hour: 20, minute: 0) // 8 PM
         self.morningMotivationTime = defaults.object(forKey: morningMotivationTimeKey) as? Date ?? Self.defaultTime(hour: 7, minute: 30) // 7:30 AM
         self.afternoonReminderTime = defaults.object(forKey: afternoonReminderTimeKey) as? Date ?? Self.defaultTime(hour: 14, minute: 0) // 2 PM
         self.gratitudePromptsTime = defaults.object(forKey: gratitudePromptsTimeKey) as? Date ?? Self.defaultTime(hour: 19, minute: 0) // 7 PM
+        self.eveningRecapTime = defaults.object(forKey: eveningRecapTimeKey) as? Date ?? Self.defaultTime(hour: 21, minute: 0) // 9 PM
     }
-    
+
     // MARK: - Scheduling
-    
+
     private func rescheduleNotification(_ type: NotificationType) {
         Task { @MainActor in
             switch type {
@@ -142,18 +162,23 @@ class NotificationSettings: ObservableObject {
                 NotificationManager.shared.scheduleAfternoonReminder(enabled: afternoonReminderEnabled, time: afternoonReminderTime)
             case .gratitudePrompts:
                 NotificationManager.shared.scheduleGratitudePrompts(enabled: gratitudePromptsEnabled, time: gratitudePromptsTime)
+            case .eveningRecap:
+                // Content-bearing — actually recomputed by NotificationScheduler,
+                // this just re-applies the enabled/time toggle with a placeholder.
+                NotificationManager.shared.scheduleEveningRecap(enabled: eveningRecapEnabled, time: eveningRecapTime, summary: "Tap to see how today went.")
             }
         }
     }
-    
+
     func initialize() {
         // Schedule initial notifications if enabled
         Task { @MainActor in
             NotificationManager.shared.scheduleMoodCheckIn(enabled: moodCheckInEnabled, time: moodCheckInTime)
             NotificationManager.shared.scheduleWeeklyReview(enabled: weeklyReviewEnabled)
-            NotificationManager.shared.scheduleMorningMotivation(enabled: morningMotivationEnabled, time: morningMotivationTime)
-            NotificationManager.shared.scheduleAfternoonReminder(enabled: afternoonReminderEnabled, time: afternoonReminderTime)
             NotificationManager.shared.scheduleGratitudePrompts(enabled: gratitudePromptsEnabled, time: gratitudePromptsTime)
+            // Morning/afternoon/evening are data-aware and scheduled by
+            // NotificationScheduler (called from ClarityApp and on scenePhase
+            // changes) instead of here with placeholder zero values.
         }
     }
     

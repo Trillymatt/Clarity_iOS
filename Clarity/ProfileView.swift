@@ -139,6 +139,7 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .contentMargins(.bottom, 90, for: .scrollContent)
             .sheet(isPresented: $showWeeklyReview) {
                 WeeklyReviewView(userEmail: userEmail)
             }

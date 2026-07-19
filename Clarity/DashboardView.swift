@@ -16,6 +16,7 @@ struct DashboardView: View {
     @Query private var moments: [LifeMoment]
     @Query private var workouts: [Workout]
     @Query private var bodyMetrics: [BodyMetric]
+    @Query private var userGoalsList: [UserGoals]
 
     init(userEmail: String, selectedTab: Binding<RootTabView.Tab>? = nil) {
         self.userEmail = userEmail
@@ -29,10 +30,12 @@ struct DashboardView: View {
         _moments = Query(filter: #Predicate { $0.ownerEmail == userEmail })
         _workouts = Query(filter: #Predicate<Workout> { $0.ownerEmail == userEmail }, sort: \Workout.date, order: .reverse)
         _bodyMetrics = Query(filter: #Predicate<BodyMetric> { $0.ownerEmail == userEmail }, sort: \BodyMetric.date, order: .reverse)
+        _userGoalsList = Query(filter: #Predicate<UserGoals> { $0.ownerEmail == userEmail })
     }
 
     @State private var showMoodCheckIn = false
     @State private var showWeeklyReview = false
+    @State private var showEditGoals = false
     @State private var currentScore: ClarityScore?
 
     // Drill-in destinations — the whole point of the redesign is that these
@@ -53,6 +56,26 @@ struct DashboardView: View {
             biggestPriority: profiles.first?.biggestPriority,
             idealDay: profiles.first?.idealDay,
             desiredHabit: profiles.first?.desiredHabit
+        )
+    }
+
+    /// Live goals record for this user. Falls back to an unsaved default
+    /// instance for the one render before `.onAppear`'s fetch-or-create has
+    /// landed, so the view never has to deal with an optional.
+    var currentGoals: UserGoals {
+        userGoalsList.first ?? UserGoals(ownerEmail: userEmail)
+    }
+
+    var recommendations: [Recommendation] {
+        RecommendationEngine.generate(
+            goals: currentGoals,
+            tasks: tasks,
+            habits: habits,
+            checkins: habitCheckins,
+            workouts: workouts,
+            bodyMetrics: bodyMetrics,
+            transactions: transactions,
+            moodEntries: moodEntries
         )
     }
 
@@ -146,9 +169,20 @@ struct DashboardView: View {
                     )
                     .padding(.horizontal)
 
-                    // 🌟 CLARITY SCORE CARD (HERO)
-                    if let score = currentScore {
-                        ClarityScoreCard(score: score)
+                    // TODAY'S GOALS — the WHOOP-style "where do I stand" ring row
+                    TodayGoalsCard(
+                        goals: currentGoals,
+                        todaySteps: bodyMetrics.first { Calendar.current.isDateInToday($0.date) }?.steps,
+                        weekWorkouts: workouts.filter { $0.date >= (Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()) }.count,
+                        tasksCompletedToday: tasks.filter { $0.isCompleted && $0.completedDate != nil && Calendar.current.isDateInToday($0.completedDate!) }.count,
+                        weekSpend: transactions.filter { $0.date >= (Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()) }.reduce(0) { $0 + $1.amount },
+                        onEdit: { showEditGoals = true }
+                    )
+                    .padding(.horizontal)
+
+                    // RECOMMENDATIONS — specific, actionable, not just "everything's fine"
+                    if !recommendations.isEmpty {
+                        RecommendationsCard(recommendations: recommendations)
                             .padding(.horizontal)
                     }
 
@@ -179,6 +213,18 @@ struct DashboardView: View {
                     // MOMENTS PREVIEW
                     MomentsPreviewSection(moments: moments, onSeeAll: { showMomentsDetail = true })
 
+                    // CLARITY SCORE — still here, just no longer the headline
+                    if let score = currentScore {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Clarity Score")
+                                .font(.clarityCaptionBold)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                            ClarityScoreCard(score: score)
+                        }
+                        .padding(.horizontal)
+                    }
+
                     Spacer(minLength: 90)
                 }
                 .padding(.top)
@@ -192,6 +238,9 @@ struct DashboardView: View {
             }
             .sheet(isPresented: $showWeeklyReview) {
                 WeeklyReviewView(userEmail: userEmail)
+            }
+            .sheet(isPresented: $showEditGoals) {
+                EditGoalsSheet(goals: UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail))
             }
             .sheet(isPresented: $showFocusDetail) {
                 EnhancedTodayTab(userEmail: userEmail)
@@ -222,6 +271,9 @@ struct DashboardView: View {
                 calculateCurrentScore()
             }
             .onAppear {
+                if userGoalsList.isEmpty {
+                    _ = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
+                }
                 calculateCurrentScore()
             }
             .onChange(of: tasks.count) { _, _ in
@@ -248,6 +300,12 @@ struct DashboardView: View {
             .onChange(of: bodyMetrics.count) { _, _ in
                 calculateCurrentScore()
             }
+            .onChange(of: currentGoals.dailyStepGoal) { _, _ in
+                calculateCurrentScore()
+            }
+            .onChange(of: currentGoals.weeklyWorkoutGoal) { _, _ in
+                calculateCurrentScore()
+            }
         }
     }
 
@@ -262,11 +320,110 @@ struct DashboardView: View {
             transactions: transactions,
             workouts: workouts,
             bodyMetrics: bodyMetrics,
+            goals: currentGoals,
             previousScore: previousTotal
         )
 
         // Update widget data
         WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+    }
+}
+
+// MARK: - Today Goals Card
+// The WHOOP-style ring row — where you stand against your own targets,
+// checkable in five seconds.
+struct TodayGoalsCard: View {
+    let goals: UserGoals
+    let todaySteps: Int?
+    let weekWorkouts: Int
+    let tasksCompletedToday: Int
+    let weekSpend: Double
+    var onEdit: () -> Void = {}
+
+    var body: some View {
+        SoftCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Today's Goals")
+                        .font(.clarityTitle)
+                    Spacer()
+                    Button(action: onEdit) {
+                        Image(systemName: "slider.horizontal.3")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack(spacing: 0) {
+                    GoalProgressRing(
+                        progress: Double(todaySteps ?? 0) / Double(max(1, goals.dailyStepGoal)),
+                        value: todaySteps.map { "\($0 / 1000)k" } ?? "—",
+                        label: "Steps",
+                        color: .clarityGreen
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    GoalProgressRing(
+                        progress: Double(weekWorkouts) / Double(max(1, goals.weeklyWorkoutGoal)),
+                        value: "\(weekWorkouts)/\(goals.weeklyWorkoutGoal)",
+                        label: "Workouts",
+                        color: .clarityTeal
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    GoalProgressRing(
+                        progress: Double(tasksCompletedToday) / Double(max(1, goals.dailyTaskGoal)),
+                        value: "\(tasksCompletedToday)/\(goals.dailyTaskGoal)",
+                        label: "Tasks",
+                        color: .clarityBlue
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    GoalProgressRing(
+                        progress: weekSpend / max(1, goals.weeklySpendLimit),
+                        value: String(format: "$%.0f", weekSpend),
+                        label: "Spend",
+                        color: weekSpend > goals.weeklySpendLimit ? .clarityPink : .clarityPurple
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Recommendations Card
+struct RecommendationsCard: View {
+    let recommendations: [Recommendation]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recommendations")
+                .font(.clarityTitle)
+                .padding(.horizontal, 4)
+
+            VStack(spacing: 10) {
+                ForEach(recommendations.prefix(3)) { rec in
+                    HStack(spacing: 12) {
+                        Image(systemName: rec.domain.icon)
+                            .foregroundStyle(rec.domain.color)
+                            .frame(width: 28)
+
+                        Text(rec.message)
+                            .font(.clarityCallout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(rec.domain.color.opacity(0.25), lineWidth: 1)
+                    )
+                }
+            }
+        }
     }
 }
 

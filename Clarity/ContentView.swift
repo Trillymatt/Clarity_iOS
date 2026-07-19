@@ -641,6 +641,7 @@ struct RootTabView: View {
         .onAppear {
             // Update widget data when app starts
             WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+            NotificationScheduler.refresh(context: context, userEmail: userEmail)
 
             // Show tutorial on first launch
             if !hasSeenTutorial {
@@ -651,8 +652,10 @@ struct RootTabView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                // Update widget data when app returns to foreground
+                // Update widget data and refresh data-aware notification
+                // content when the app returns to foreground.
                 WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+                NotificationScheduler.refresh(context: context, userEmail: userEmail)
             }
         }
     }

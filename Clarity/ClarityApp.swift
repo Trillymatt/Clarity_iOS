@@ -29,14 +29,15 @@ struct ClarityApp: App {
             ClarityScore.self,
             Workout.self,
             BodyMetric.self,
-            AssistantMessage.self
+            AssistantMessage.self,
+            UserGoals.self
         ])
 
         // Try persistent storage first
         let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         // Check if we need to reset due to schema changes
-        let currentSchemaVersion = 4 // Jarvis redesign: fitness + assistant models added
+        let currentSchemaVersion = 5 // Added UserGoals for goal-driven scoring + recommendations
         let savedVersion = UserDefaults.standard.integer(forKey: "SchemaVersion")
         
         if savedVersion < currentSchemaVersion {

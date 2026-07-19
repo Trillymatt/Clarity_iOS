@@ -139,18 +139,6 @@ struct EnhancedHabitsTab: View {
         return streak
     }
     
-    private func moveHabit(from source: IndexSet, to destination: Int) {
-        var reorderedHabits = otherHabits
-        reorderedHabits.move(fromOffsets: source, toOffset: destination)
-        
-        // Update display orders (primary = 0, others start from 1)
-        for (index, habit) in reorderedHabits.enumerated() {
-            habit.displayOrder = index + 1
-        }
-        
-        try? context.save()
-    }
-    
     // MARK: - Body
     
     var body: some View {
@@ -221,16 +209,16 @@ struct EnhancedHabitsTab: View {
                                             userEmail: userEmail
                                         )
                                         .id(habit.id)
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        .contextMenu {
                                             Button(role: .destructive) {
                                                 withAnimation {
                                                     // Delete associated check-ins first
                                                     let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
                                                     habitCheckins.forEach { context.delete($0) }
-                                                    
+
                                                     // Then delete the habit
                                                     context.delete(habit)
-                                                    
+
                                                     // Save and refresh
                                                     try? context.save()
                                                 }
@@ -239,7 +227,6 @@ struct EnhancedHabitsTab: View {
                                             }
                                         }
                                     }
-                                    .onMove(perform: moveHabit)
                                 }
                             }
                         
@@ -356,7 +343,7 @@ struct PrimaryHabitCard: View {
             switch iconName {
             case "figure.run", "figure.walk": return "🏃‍♂️"
             case "book.fill", "book": return "📚"
-            case "waterbottle.fill", "waterbottle": return "💧"
+            case "waterbottle.fill", "waterbottle", "drop.fill": return "💧"
             case "figure.mind.and.body": return "🧘‍♀️"
             case "bed.double.fill", "bed": return "😴"
             case "fork.knife": return "🍽️"
@@ -364,6 +351,8 @@ struct PrimaryHabitCard: View {
             case "brain.head.profile": return "🧠"
             case "heart.fill", "heart": return "❤️"
             case "sun.max.fill", "sun": return "☀️"
+            case "flame.fill": return "🔥"
+            case "leaf.fill": return "🌿"
             default: return "⭐"
             }
         }
@@ -440,7 +429,7 @@ struct EnhancedHabitRow: View {
             switch iconName {
             case "figure.run", "figure.walk": return "🏃‍♂️"
             case "book.fill", "book": return "📚"
-            case "waterbottle.fill", "waterbottle": return "💧"
+            case "waterbottle.fill", "waterbottle", "drop.fill": return "💧"
             case "figure.mind.and.body": return "🧘‍♀️"
             case "bed.double.fill", "bed": return "😴"
             case "fork.knife": return "🍽️"
@@ -448,6 +437,8 @@ struct EnhancedHabitRow: View {
             case "brain.head.profile": return "🧠"
             case "heart.fill", "heart": return "❤️"
             case "sun.max.fill", "sun": return "☀️"
+            case "flame.fill": return "🔥"
+            case "leaf.fill": return "🌿"
             default: return "⭐"
             }
         }

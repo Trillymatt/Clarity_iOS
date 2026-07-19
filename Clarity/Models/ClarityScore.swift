@@ -274,34 +274,35 @@ class ClarityScoreCalculator {
     }
     
     /// Calculate fitness score (0-100). Today: logged a workout (40) + hit a
-    /// step goal (20). Week: workout frequency vs. a 4x/week target (30) +
-    /// average daily steps vs. the same goal (10).
-    static func calculateFitnessScore(workouts: [Workout], bodyMetrics: [BodyMetric]) -> Double {
+    /// step goal (20). Week: workout frequency vs. the user's weekly-workout
+    /// goal (30) + average daily steps vs. the same step goal (10).
+    static func calculateFitnessScore(workouts: [Workout], bodyMetrics: [BodyMetric], stepGoal: Int = 8000, weeklyWorkoutGoal: Int = 4) -> Double {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let weekStart = calendar.date(byAdding: .day, value: -6, to: today)!
-        let stepGoal = 8000.0
+        let stepGoalValue = Double(max(1, stepGoal))
+        let weeklyTarget = Double(max(1, weeklyWorkoutGoal))
 
         let workoutToday = workouts.contains { calendar.isDateInToday($0.date) }
         let todayWorkoutScore: Double = workoutToday ? 40 : 0
 
         let todaySteps = bodyMetrics.first { calendar.isDateInToday($0.date) }?.steps
-        let todayStepsScore = min(20, (Double(todaySteps ?? 0) / stepGoal) * 20)
+        let todayStepsScore = min(20, (Double(todaySteps ?? 0) / stepGoalValue) * 20)
 
         let weekWorkouts = workouts.filter { $0.date >= weekStart }
-        let weeklyTarget = 4.0
         let frequencyScore = min(30, (Double(weekWorkouts.count) / weeklyTarget) * 30)
 
         let weekSteps = bodyMetrics.filter { $0.date >= weekStart }.compactMap { $0.steps }
         let avgSteps = weekSteps.isEmpty ? 0 : Double(weekSteps.reduce(0, +)) / Double(weekSteps.count)
-        let avgStepsScore = min(10, (avgSteps / stepGoal) * 10)
+        let avgStepsScore = min(10, (avgSteps / stepGoalValue) * 10)
 
         return min(100, todayWorkoutScore + todayStepsScore + frequencyScore + avgStepsScore)
     }
 
     /// Calculate complete Clarity Score. `workouts`/`bodyMetrics` default to
     /// empty so existing call sites keep compiling; pass `previousScore` to
-    /// get a real up/down trend instead of the default neutral.
+    /// get a real up/down trend instead of the default neutral, and `goals`
+    /// to score fitness against the user's own targets instead of defaults.
     static func calculateFullScore(
         tasks: [TaskItem],
         habits: [Habit],
@@ -311,6 +312,7 @@ class ClarityScoreCalculator {
         transactions: [Transaction],
         workouts: [Workout] = [],
         bodyMetrics: [BodyMetric] = [],
+        goals: UserGoals? = nil,
         previousScore: Double? = nil
     ) -> ClarityScore {
         let taskScore = calculateTaskScore(tasks: tasks)
@@ -318,7 +320,12 @@ class ClarityScoreCalculator {
         let moodScore = calculateMoodScore(moodEntries: moodEntries)
         let momentScore = calculateMomentScore(moments: moments)
         let financeScore = calculateFinanceScore(transactions: transactions)
-        let fitnessScore = calculateFitnessScore(workouts: workouts, bodyMetrics: bodyMetrics)
+        let fitnessScore = calculateFitnessScore(
+            workouts: workouts,
+            bodyMetrics: bodyMetrics,
+            stepGoal: goals?.dailyStepGoal ?? 8000,
+            weeklyWorkoutGoal: goals?.weeklyWorkoutGoal ?? 4
+        )
 
         let score = ClarityScore(
             taskScore: taskScore,

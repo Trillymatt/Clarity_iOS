@@ -2,7 +2,7 @@ import Foundation
 import AuthenticationServices
 
 class GoogleAuthHelper: NSObject {
-    static let clientID = "299944978186-en4k9thjnnomdc750uhmho54ath2ei17.apps.googleusercontent.com "
+    static let clientID = "299944978186-en4k9thjnnomdc750uhmho54ath2ei17.apps.googleusercontent.com"
     
     // Derived properties
     static var urlScheme: String {

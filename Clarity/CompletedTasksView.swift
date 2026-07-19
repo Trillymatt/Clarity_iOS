@@ -41,11 +41,6 @@ struct CompletedTasksView: View {
                 }
             }
             .navigationTitle("Completed")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    EditButton() // Allows deletion if we add onDelete to ForEach, but TaskRow handles toggle
-                }
-            }
         }
     }
     

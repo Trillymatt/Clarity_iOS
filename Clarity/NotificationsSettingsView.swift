@@ -145,6 +145,35 @@ struct NotificationsSettingsView: View {
                     }
                 }
                 
+                // Evening Recap
+                VStack(spacing: 12) {
+                    Toggle(isOn: $notificationSettings.eveningRecapEnabled) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("Evening Recap")
+                                    .font(.subheadline.bold())
+                                Text("🌙")
+                            }
+                            Text("How today went, and what to know before tomorrow")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .tint(Color.clarityPurple)
+
+                    if notificationSettings.eveningRecapEnabled {
+                        Divider()
+                        HStack {
+                            Text("Time")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            DatePicker("", selection: $notificationSettings.eveningRecapTime, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                        }
+                    }
+                }
+
                 // Gratitude Prompts
                 VStack(spacing: 12) {
                     Toggle(isOn: $notificationSettings.gratitudePromptsEnabled) {

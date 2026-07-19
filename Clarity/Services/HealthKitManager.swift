@@ -23,7 +23,16 @@ struct HealthKitWorkoutSummary {
 final class HealthKitManager: ObservableObject {
     static let shared = HealthKitManager()
 
-    @Published var isAuthorized = false
+    /// HealthKit deliberately never tells an app whether the user granted or
+    /// denied a *read* permission — `requestAuthorization` only reports that
+    /// the prompt was completed. So this tracks "has the user been through
+    /// the connect flow at least once," persisted so it survives relaunch;
+    /// syncing after that is safe even if access was denied (reads just come
+    /// back empty). Without persisting this, the app would re-show the
+    /// "Connect Health" banner and skip auto-sync on every single launch.
+    private static let requestedKey = "healthKitRequested"
+
+    @Published var isAuthorized: Bool = UserDefaults.standard.bool(forKey: HealthKitManager.requestedKey)
 
     private init() {}
 
@@ -54,10 +63,10 @@ final class HealthKitManager: ObservableObject {
         do {
             try await store.requestAuthorization(toShare: [], read: readTypes)
             isAuthorized = true
+            UserDefaults.standard.set(true, forKey: Self.requestedKey)
             return true
         } catch {
             print("HealthKit authorization failed: \(error)")
-            isAuthorized = false
             return false
         }
     }

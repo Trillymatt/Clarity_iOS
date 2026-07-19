@@ -7,7 +7,8 @@ struct EditTransactionSheet: View {
     @Bindable var transaction: Transaction
     
     @State private var amount: String = ""
-    
+    @State private var showDeleteConfirmation = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -105,11 +106,19 @@ struct EditTransactionSheet: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {
-                        deleteTransaction()
+                        showDeleteConfirmation = true
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
                 }
+            }
+            .alert("Delete Transaction?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    deleteTransaction()
+                }
+            } message: {
+                Text("This action cannot be undone.")
             }
             .onAppear {
                 amount = String(format: "%.2f", transaction.amount)
