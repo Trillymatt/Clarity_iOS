@@ -21,11 +21,9 @@ struct ClarityApp: App {
             LifeMoment.self,
             Transaction.self,
             FinancialGoal.self,
-            LifeAreaScore.self,
             MoodEntry.self,
             WeeklyReview.self,
             Budget.self,
-            Insight.self,
             ClarityScore.self,
             Workout.self,
             BodyMetric.self,
@@ -37,7 +35,7 @@ struct ClarityApp: App {
         let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         // Check if we need to reset due to schema changes
-        let currentSchemaVersion = 5 // Added UserGoals for goal-driven scoring + recommendations
+        let currentSchemaVersion = 6 // Removed unused LifeAreaScore/Insight models
         let savedVersion = UserDefaults.standard.integer(forKey: "SchemaVersion")
         
         if savedVersion < currentSchemaVersion {

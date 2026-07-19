@@ -1215,6 +1215,6 @@ struct FlowLayout<Content: View>: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [UserProfile.self, TaskItem.self, Habit.self, HabitCheckin.self, JournalEntry.self, LifeMoment.self, Transaction.self, FinancialGoal.self, LifeAreaScore.self], inMemory: true)
+        .modelContainer(for: [UserProfile.self, TaskItem.self, Habit.self, HabitCheckin.self, JournalEntry.self, LifeMoment.self, Transaction.self, FinancialGoal.self], inMemory: true)
 }
 

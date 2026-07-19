@@ -24,7 +24,6 @@ struct WeeklyReviewView: View {
     @State private var isTyping = false
     
     // AI Extraction State
-    @State private var showExtractionPreview = false
     @State private var extractedItems: ExtractedItems?
     @State private var isExtracting = false
     @State private var reviewSaved = false // Prevent double-saving
@@ -387,31 +386,6 @@ struct WeeklyReviewView: View {
         }
     }
     
-    private func saveReview() {
-        let goalsList = goals.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-        
-        let review = WeeklyReview(
-            ownerEmail: userEmail,
-            date: Date(),
-            wins: wins,
-            challenges: challenges,
-            learnings: learnings,
-            improvements: "",
-            habitAdherence: 0, // Not explicitly asked, could infer or remove
-            topGoals: goalsList,
-            mainFocus: mainFocus,
-            habitFocus: habitFocus,
-            weekRating: rating
-        )
-        context.insert(review)
-        try? context.save()
-        
-        // Save timestamp for last weekly review
-        UserDefaults.standard.set(Date(), forKey: "lastWeeklyReview")
-        
-        dismiss()
-    }
-    
     private func saveReviewSilently() {
         guard !reviewSaved else {
             print("⚠️ Review already saved, skipping")
@@ -466,8 +440,6 @@ struct WeeklyReviewView: View {
                     
                     if items.isEmpty {
                         print("⚠️ No items extracted")
-                    } else {
-                        showExtractionPreview = true
                     }
                 }
             } catch {

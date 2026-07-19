@@ -194,31 +194,3 @@ final class FinancialGoal {
     }
 }
 
-@Model
-final class LifeAreaScore {
-    @Attribute(.unique) var id: UUID
-    var ownerEmail: String
-    var date: Date
-    var health: Int
-    var mind: Int
-    var relationships: Int
-    var career: Int
-    var finance: Int
-    var spiritual: Int
-    var growth: Int
-    var lifestyle: Int
-    
-    init(id: UUID = UUID(), ownerEmail: String = "", date: Date = Date(), health: Int = 5, mind: Int = 5, relationships: Int = 5, career: Int = 5, finance: Int = 5, spiritual: Int = 5, growth: Int = 5, lifestyle: Int = 5) {
-        self.id = id
-        self.ownerEmail = ownerEmail
-        self.date = date
-        self.health = health
-        self.mind = mind
-        self.relationships = relationships
-        self.career = career
-        self.finance = finance
-        self.spiritual = spiritual
-        self.growth = growth
-        self.lifestyle = lifestyle
-    }
-}

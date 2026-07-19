@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import Charts
 
 struct DashboardView: View {
     @Environment(\.modelContext) private var context
@@ -466,13 +465,6 @@ struct TodaysFocusSection: View {
         }
     }
 
-    var taskInsight: String {
-        InsightGenerator.generateTaskInsight(
-            completionRate: Double(todaysTasks.filter { $0.isCompleted }.count) / max(1, Double(todaysTasks.count)),
-            tasksCompleted: todaysTasks.filter { $0.isCompleted }.count
-        )
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
@@ -626,9 +618,19 @@ struct HabitsPreviewSection: View {
         habits.filter { $0.isActive }
     }
 
+    /// A plain, honest stat instead of a canned "streak" line — real data
+    /// beats a generic motivational string that isn't actually measuring
+    /// anything for this specific habit set.
     var habitInsight: String {
-        let streak = min(7, activeHabits.count)
-        return InsightGenerator.generateHabitInsight(streak: streak, consistency: 0.8)
+        guard !activeHabits.isEmpty else { return "No active habits" }
+        let checkedInToday = activeHabits.filter { habit in
+            let goal = habit.goalPerDay ?? 1
+            let todayTotal = habitCheckins
+                .filter { $0.habit?.id == habit.id && Calendar.current.isDateInToday($0.date) }
+                .reduce(0) { $0 + $1.value }
+            return todayTotal >= goal
+        }.count
+        return "\(checkedInToday)/\(activeHabits.count) checked in today"
     }
 
     var body: some View {
