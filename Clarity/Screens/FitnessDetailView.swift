@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 // MARK: - Fitness Detail View
 // The full fitness surface, reached from the Dashboard's Fitness module via
@@ -34,6 +35,46 @@ struct FitnessDetailView: View {
         return workouts.filter { $0.date >= weekAgo }.count
     }
 
+    /// Consecutive days (counting back from today or yesterday) with at
+    /// least one logged workout.
+    private var currentWorkoutStreak: Int {
+        let calendar = Calendar.current
+        let workoutDays = Set(workouts.map { calendar.startOfDay(for: $0.date) }).sorted(by: >)
+        guard let mostRecent = workoutDays.first else { return 0 }
+
+        let today = calendar.startOfDay(for: Date())
+        let daysSinceLast = calendar.dateComponents([.day], from: mostRecent, to: today).day ?? 0
+        guard daysSinceLast <= 1 else { return 0 }
+
+        var streak = 0
+        var cursor = mostRecent
+        for day in workoutDays {
+            if day == cursor {
+                streak += 1
+                cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+            } else {
+                break
+            }
+        }
+        return streak
+    }
+
+    private var longestDurationWorkout: Workout? {
+        workouts.max { $0.durationMinutes < $1.durationMinutes }
+    }
+
+    private var mostCaloriesWorkout: Workout? {
+        workouts.filter { $0.caloriesBurned != nil }.max { ($0.caloriesBurned ?? 0) < ($1.caloriesBurned ?? 0) }
+    }
+
+    private var farthestDistanceWorkout: Workout? {
+        workouts.filter { $0.distanceMeters != nil }.max { ($0.distanceMeters ?? 0) < ($1.distanceMeters ?? 0) }
+    }
+
+    private var weightHistory: [BodyMetric] {
+        bodyMetrics.filter { $0.weightKg != nil }.sorted { $0.date < $1.date }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -42,6 +83,16 @@ struct FitnessDetailView: View {
                 }
 
                 todaySummaryCard
+
+                if currentWorkoutStreak > 0 || longestDurationWorkout != nil {
+                    streakAndRecordsCard
+                        .padding(.horizontal)
+                }
+
+                if weightHistory.count >= 2 {
+                    weightTrendCard
+                        .padding(.horizontal)
+                }
 
                 HStack {
                     Text("This Week")
@@ -155,6 +206,82 @@ struct FitnessDetailView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    private var streakAndRecordsCard: some View {
+        SoftCard(glow: Color.clarityOrange) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(Color.clarityOrange)
+                    Text("Streak & Records")
+                        .font(.clarityTitle)
+                }
+
+                if currentWorkoutStreak > 0 {
+                    HStack(spacing: 6) {
+                        Text("\(currentWorkoutStreak)")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.clarityOrange)
+                        Text("day workout streak")
+                            .font(.clarityCallout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                VStack(spacing: 8) {
+                    if let longest = longestDurationWorkout {
+                        recordRow(icon: "clock.fill", label: "Longest", value: "\(longest.durationMinutes) min \(longest.type.label)")
+                    }
+                    if let most = mostCaloriesWorkout, let calories = most.caloriesBurned {
+                        recordRow(icon: "flame.fill", label: "Most Calories", value: "\(Int(calories)) kcal (\(most.type.label))")
+                    }
+                    if let farthest = farthestDistanceWorkout, let miles = farthest.distanceMiles {
+                        recordRow(icon: "location.fill", label: "Farthest", value: String(format: "%.1f mi (%@)", miles, farthest.type.label))
+                    }
+                }
+            }
+        }
+    }
+
+    private func recordRow(icon: String, label: String, value: String) -> some View {
+        HStack {
+            Label(label, systemImage: icon)
+                .font(.clarityCaption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.clarityCallout.bold())
+        }
+    }
+
+    private var weightTrendCard: some View {
+        SoftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Weight Trend")
+                    .font(.clarityTitle)
+
+                Chart(weightHistory) { metric in
+                    LineMark(
+                        x: .value("Date", metric.date),
+                        y: .value("Weight", metric.weightLbs ?? 0)
+                    )
+                    .foregroundStyle(Color.clarityBlue)
+                    .interpolationMethod(.catmullRom)
+
+                    PointMark(
+                        x: .value("Date", metric.date),
+                        y: .value("Weight", metric.weightLbs ?? 0)
+                    )
+                    .foregroundStyle(Color.clarityBlue)
+                }
+                .frame(height: 140)
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+            }
+        }
     }
 
     private func metricTile(value: String, label: String, icon: String) -> some View {

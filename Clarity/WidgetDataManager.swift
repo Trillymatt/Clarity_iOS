@@ -35,7 +35,17 @@ struct WidgetData: Codable {
     // New fields for detailed widgets
     var upcomingTasks: [WidgetTask] = []
     var activeHabits: [WidgetHabit] = []
-    
+
+    // Goals + fitness — powers the Goals-focused hero widget and the
+    // Fitness widget without either needing their own data fetch.
+    var todaySteps: Int? = nil
+    var stepGoal: Int = 8000
+    var weekWorkouts: Int = 0
+    var weeklyWorkoutGoal: Int = 4
+    var tasksCompletedToday: Int = 0
+    var dailyTaskGoal: Int = 3
+    var workoutStreak: Int = 0
+
     var taskCompletionText: String {
         "\(todayTasksCompleted)/\(todayTasksTotal) tasks"
     }

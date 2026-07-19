@@ -21,6 +21,7 @@ enum NotificationScheduler {
         let bodyMetrics = (try? context.fetch(FetchDescriptor<BodyMetric>(predicate: #Predicate<BodyMetric> { $0.ownerEmail == userEmail }))) ?? []
         let transactions = (try? context.fetch(FetchDescriptor<Transaction>(predicate: #Predicate<Transaction> { $0.ownerEmail == userEmail }))) ?? []
         let moodEntries = (try? context.fetch(FetchDescriptor<MoodEntry>(predicate: #Predicate<MoodEntry> { $0.ownerEmail == userEmail }))) ?? []
+        let budgets = (try? context.fetch(FetchDescriptor<Budget>(predicate: #Predicate<Budget> { $0.ownerEmail == userEmail }))) ?? []
         let goals = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
 
         let calendar = Calendar.current
@@ -47,7 +48,8 @@ enum NotificationScheduler {
             workouts: workouts,
             bodyMetrics: bodyMetrics,
             transactions: transactions,
-            moodEntries: moodEntries
+            moodEntries: moodEntries,
+            budgets: budgets
         )
 
         let completedToday = tasks.filter {

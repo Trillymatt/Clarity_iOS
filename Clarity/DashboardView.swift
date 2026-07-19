@@ -16,6 +16,7 @@ struct DashboardView: View {
     @Query private var workouts: [Workout]
     @Query private var bodyMetrics: [BodyMetric]
     @Query private var userGoalsList: [UserGoals]
+    @Query private var budgets: [Budget]
 
     init(userEmail: String, selectedTab: Binding<RootTabView.Tab>? = nil) {
         self.userEmail = userEmail
@@ -30,11 +31,14 @@ struct DashboardView: View {
         _workouts = Query(filter: #Predicate<Workout> { $0.ownerEmail == userEmail }, sort: \Workout.date, order: .reverse)
         _bodyMetrics = Query(filter: #Predicate<BodyMetric> { $0.ownerEmail == userEmail }, sort: \BodyMetric.date, order: .reverse)
         _userGoalsList = Query(filter: #Predicate<UserGoals> { $0.ownerEmail == userEmail })
+        _budgets = Query(filter: #Predicate<Budget> { $0.ownerEmail == userEmail })
     }
 
     @State private var showMoodCheckIn = false
     @State private var showWeeklyReview = false
     @State private var showEditGoals = false
+    @State private var showTrends = false
+    @State private var showSearch = false
     @State private var currentScore: ClarityScore?
 
     // Drill-in destinations — the whole point of the redesign is that these
@@ -74,7 +78,8 @@ struct DashboardView: View {
             workouts: workouts,
             bodyMetrics: bodyMetrics,
             transactions: transactions,
-            moodEntries: moodEntries
+            moodEntries: moodEntries,
+            budgets: budgets
         )
     }
 
@@ -116,6 +121,13 @@ struct DashboardView: View {
                                 .font(.clarityHero)
                         }
                         Spacer()
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, height: 40)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
                         Button(action: { selectedTab?.wrappedValue = .profile }) {
                             Image(systemName: "person.crop.circle.fill")
                                 .font(.system(size: 40))
@@ -200,8 +212,11 @@ struct DashboardView: View {
                         moments: moments,
                         transactions: transactions
                     )
-                    LifePulseGraph(pulseData: pulseData)
-                        .padding(.horizontal)
+                    Button(action: { showTrends = true }) {
+                        LifePulseGraph(pulseData: pulseData)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
 
                     // HABITS PREVIEW
                     HabitsPreviewSection(habits: habits, onSeeAll: { showHabitsDetail = true })
@@ -240,6 +255,12 @@ struct DashboardView: View {
             }
             .sheet(isPresented: $showEditGoals) {
                 EditGoalsSheet(goals: UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail))
+            }
+            .sheet(isPresented: $showTrends) {
+                TrendHistoryView(userEmail: userEmail)
+            }
+            .sheet(isPresented: $showSearch) {
+                GlobalSearchView(userEmail: userEmail)
             }
             .sheet(isPresented: $showFocusDetail) {
                 EnhancedTodayTab(userEmail: userEmail)
@@ -695,41 +716,7 @@ struct CompactHabitCard: View {
     }
 
     var currentStreak: Int {
-        let calendar = Calendar.current
-        let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
-
-        guard !habitCheckins.isEmpty else { return 0 }
-
-        // Get all unique days with check-ins, sorted descending
-        let checkinDays = Set(habitCheckins.map { calendar.startOfDay(for: $0.date) })
-            .sorted(by: >)
-
-        guard let mostRecentDay = checkinDays.first else { return 0 }
-
-        let today = calendar.startOfDay(for: Date())
-
-        // If most recent check-in isn't today or yesterday, streak is broken
-        let daysSinceLastCheckin = calendar.dateComponents([.day], from: mostRecentDay, to: today).day ?? 0
-        if daysSinceLastCheckin > 1 {
-            return 0
-        }
-
-        // Count consecutive days backwards
-        var streak = 0
-        var currentDay = mostRecentDay
-
-        for day in checkinDays {
-            if day == currentDay {
-                streak += 1
-                // Move to previous day
-                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay)!
-            } else {
-                // Gap in streak
-                break
-            }
-        }
-
-        return streak
+        HabitStreakCalculator.currentStreak(checkins: checkins, habitID: habit.id)
     }
 
     var body: some View {

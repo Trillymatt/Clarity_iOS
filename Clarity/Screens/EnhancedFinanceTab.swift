@@ -7,16 +7,30 @@ struct EnhancedFinanceTab: View {
     @Environment(\.modelContext) private var context
     let userEmail: String
     @Query private var transactions: [Transaction]
-    
+    @Query private var budgets: [Budget]
+
     init(userEmail: String) {
         self.userEmail = userEmail
         _transactions = Query(filter: #Predicate { $0.ownerEmail == userEmail }, sort: \Transaction.date, order: .reverse)
+        _budgets = Query(filter: #Predicate<Budget> { $0.ownerEmail == userEmail })
     }
-    
+
     @State private var showAdd = false
+    @State private var showEditBudgets = false
     @State private var prefillAmount: Double = 0
     @State private var prefillCategory: TransactionCategory = .other
     @State private var prefillNote: String = ""
+
+    private var monthSpending: [TransactionCategory: Double] {
+        let monthStart = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        let monthTransactions = transactions.filter { $0.date >= monthStart }
+        return Dictionary(grouping: monthTransactions, by: \.category)
+            .mapValues { $0.reduce(0) { $0 + $1.amount } }
+    }
+
+    private var recurringCharges: [DetectedRecurringCharge] {
+        RecurringTransactionDetector.detect(transactions: transactions)
+    }
     
     // MARK: - Computed Properties
     
@@ -97,7 +111,57 @@ struct EnhancedFinanceTab: View {
                             CategoryBreakdownCard(categoryData: spendingByCategory)
                                 .padding(.horizontal, 12)
                         }
-                        
+
+                        // Budgets
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("Budgets")
+                                    .font(.headline)
+                                Spacer()
+                                Button(action: { showEditBudgets = true }) {
+                                    Text(budgets.isEmpty ? "Set Budgets" : "Edit")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(Color.clarityBlue)
+                                }
+                            }
+
+                            if budgets.isEmpty {
+                                SoftCard {
+                                    Text("Set monthly limits per category and Jarvis will flag it when you're close.")
+                                        .font(.clarityCallout)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(budgets.sorted { $0.categoryRaw < $1.categoryRaw }) { budget in
+                                        BudgetRow(budget: budget, spent: monthSpending[budget.category] ?? 0)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+
+                        // Subscriptions & Bills (auto-detected)
+                        if !recurringCharges.isEmpty {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Subscriptions & Bills")
+                                    .font(.headline)
+                                Text("Detected from repeating charges — confirm to stop seeing this prompt.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                VStack(spacing: 12) {
+                                    ForEach(recurringCharges) { charge in
+                                        RecurringChargeRow(charge: charge) {
+                                            markRecurring(charge)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                        }
+
                         if transactions.isEmpty {
                             SuggestedTransactionsView(
                                 showAdd: $showAdd,
@@ -168,7 +232,49 @@ struct EnhancedFinanceTab: View {
                     prefillNote: prefillNote
                 )
             }
+            .sheet(isPresented: $showEditBudgets) {
+                EditBudgetSheet(userEmail: userEmail)
+            }
         }
+    }
+
+    private func markRecurring(_ charge: DetectedRecurringCharge) {
+        let matches = transactions.filter { charge.transactionIDs.contains($0.id) }
+        matches.forEach { $0.isRecurring = true }
+        try? context.save()
+    }
+}
+
+// MARK: - Recurring Charge Row
+
+struct RecurringChargeRow: View {
+    let charge: DetectedRecurringCharge
+    var onConfirm: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(charge.note.isEmpty ? charge.category.rawValue.capitalized : charge.note)
+                    .font(.body.weight(.medium))
+                Text("~$\(String(format: "%.2f", charge.averageAmount))/mo · next ~\(charge.nextExpectedDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: onConfirm) {
+                Text("Confirm")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.clarityTeal)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.clarityTeal.opacity(0.15), in: Capsule())
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
     }
 }
 

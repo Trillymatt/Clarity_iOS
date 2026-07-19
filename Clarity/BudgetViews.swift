@@ -60,11 +60,10 @@ struct BudgetRow: View {
             }
         }
         .padding()
-        .background(Color.clarityCard)
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(color.opacity(0.25), lineWidth: 1))
     }
-    
+
     func iconFor(_ category: TransactionCategory) -> String {
         switch category {
         case .food: return "fork.knife"
@@ -80,10 +79,16 @@ struct BudgetRow: View {
 struct EditBudgetSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    let userEmail: String
     @Query private var budgets: [Budget]
-    
+
     @State private var limits: [TransactionCategory: Double] = [:]
-    
+
+    init(userEmail: String) {
+        self.userEmail = userEmail
+        _budgets = Query(filter: #Predicate<Budget> { $0.ownerEmail == userEmail })
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -125,7 +130,7 @@ struct EditBudgetSheet: View {
             if let existing = budgets.first(where: { $0.category == category }) {
                 existing.limit = limit
             } else if limit > 0 {
-                let newBudget = Budget(category: category, limit: limit)
+                let newBudget = Budget(ownerEmail: userEmail, category: category, limit: limit)
                 context.insert(newBudget)
             }
         }

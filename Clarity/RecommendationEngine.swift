@@ -48,7 +48,8 @@ enum RecommendationEngine {
         workouts: [Workout],
         bodyMetrics: [BodyMetric],
         transactions: [Transaction],
-        moodEntries: [MoodEntry]
+        moodEntries: [MoodEntry],
+        budgets: [Budget] = []
     ) -> [Recommendation] {
         var recs: [Recommendation] = []
         let calendar = Calendar.current
@@ -57,6 +58,20 @@ enum RecommendationEngine {
         let today = calendar.startOfDay(for: now)
         let weekStart = calendar.date(byAdding: .day, value: -6, to: today) ?? now
         let daysLeftInWeek = max(1, 7 - calendar.component(.weekday, from: now) + 1)
+
+        // MARK: Money — over a per-category budget this month
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let monthTransactions = transactions.filter { $0.date >= monthStart }
+        for budget in budgets where budget.limit > 0 {
+            let spent = monthTransactions.filter { $0.category == budget.category }.reduce(0) { $0 + $1.amount }
+            if spent > budget.limit {
+                recs.append(Recommendation(
+                    domain: .money,
+                    message: String(format: "%@ budget: $%.0f over your $%.0f monthly limit.", budget.category.rawValue.capitalized, spent - budget.limit, budget.limit),
+                    priority: 85
+                ))
+            }
+        }
 
         // MARK: Money — over/near weekly spending limit
         let weekSpend = transactions.filter { $0.date >= weekStart }.reduce(0) { $0 + $1.amount }
@@ -167,6 +182,46 @@ enum RecommendationEngine {
             ))
         }
 
+        // MARK: Cross-domain — do workouts actually correlate with getting more done?
+        // A real (if simple) pattern check rather than a generic "you're doing great."
+        // Needs at least 5 days of each kind in the last 30 to say anything meaningful.
+        if let correlation = workoutTaskCorrelation(tasks: tasks, workouts: workouts, calendar: calendar, today: today) {
+            recs.append(correlation)
+        }
+
         return recs.sorted { $0.priority > $1.priority }
+    }
+
+    private static func workoutTaskCorrelation(tasks: [TaskItem], workouts: [Workout], calendar: Calendar, today: Date) -> Recommendation? {
+        let windowStart = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+        let workoutDays = Set(workouts.filter { $0.date >= windowStart }.map { calendar.startOfDay(for: $0.date) })
+        guard workoutDays.count >= 5 else { return nil }
+
+        let completedByDay = Dictionary(
+            grouping: tasks.filter { $0.isCompleted && $0.completedDate != nil && $0.completedDate! >= windowStart },
+            by: { calendar.startOfDay(for: $0.completedDate!) }
+        ).mapValues { $0.count }
+
+        var daysInWindow: [Date] = []
+        var cursor = windowStart
+        while cursor <= today {
+            daysInWindow.append(cursor)
+            cursor = calendar.date(byAdding: .day, value: 1, to: cursor) ?? today
+        }
+
+        let workoutDayCounts = daysInWindow.filter { workoutDays.contains($0) }.map { completedByDay[$0] ?? 0 }
+        let restDayCounts = daysInWindow.filter { !workoutDays.contains($0) }.map { completedByDay[$0] ?? 0 }
+        guard restDayCounts.count >= 5 else { return nil }
+
+        let avgWorkout = Double(workoutDayCounts.reduce(0, +)) / Double(workoutDayCounts.count)
+        let avgRest = Double(restDayCounts.reduce(0, +)) / Double(restDayCounts.count)
+
+        guard avgWorkout > 0, avgWorkout >= avgRest * 1.2, avgWorkout - avgRest >= 0.5 else { return nil }
+
+        return Recommendation(
+            domain: .fitness,
+            message: String(format: "You complete about %.1f more tasks on days you work out (%.1f vs %.1f avg) — worth noticing.", avgWorkout - avgRest, avgWorkout, avgRest),
+            priority: 20
+        )
     }
 }

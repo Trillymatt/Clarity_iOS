@@ -12,30 +12,13 @@ import UserNotifications
 @main
 struct ClarityApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            UserProfile.self,
-            TaskItem.self,
-            Habit.self,
-            HabitCheckin.self,
-            JournalEntry.self,
-            LifeMoment.self,
-            Transaction.self,
-            FinancialGoal.self,
-            MoodEntry.self,
-            WeeklyReview.self,
-            Budget.self,
-            ClarityScore.self,
-            Workout.self,
-            BodyMetric.self,
-            AssistantMessage.self,
-            UserGoals.self
-        ])
+        let schema = ClarityModelContainer.schema
 
         // Try persistent storage first
         let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         // Check if we need to reset due to schema changes
-        let currentSchemaVersion = 6 // Removed unused LifeAreaScore/Insight models
+        let currentSchemaVersion = 7 // Budget now has ownerEmail (was global before)
         let savedVersion = UserDefaults.standard.integer(forKey: "SchemaVersion")
         
         if savedVersion < currentSchemaVersion {

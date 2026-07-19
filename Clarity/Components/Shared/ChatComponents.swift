@@ -109,9 +109,11 @@ struct ChatInputBar: View {
     let placeholder: String
     @Binding var text: String
     var isBusy: Bool = false
+    var showVoiceButton: Bool = false
     var onSend: (String) -> Void
 
     @FocusState private var isFocused: Bool
+    @ObservedObject private var speech = SpeechRecognizerService.shared
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
@@ -122,11 +124,22 @@ struct ChatInputBar: View {
                 .lineLimit(1...5)
                 .submitLabel(.send)
                 .onSubmit(sendIfPossible)
-                .jarvisGlow(active: isFocused, cornerRadius: 20)
+                .jarvisGlow(active: isFocused || speech.isListening, cornerRadius: 20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(Color.white.opacity(isFocused ? 0 : 0.1), lineWidth: 1)
                 )
+
+            if showVoiceButton && speech.isAvailable {
+                Button(action: toggleVoice) {
+                    Image(systemName: speech.isListening ? "waveform.circle.fill" : "mic.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(speech.isListening ? Color.clarityPink : Color.secondary)
+                        .symbolEffect(.pulse, isActive: speech.isListening)
+                        .frame(width: 32, height: 32)
+                }
+                .disabled(isBusy)
+            }
 
             Button(action: sendIfPossible) {
                 if isBusy {
@@ -141,9 +154,35 @@ struct ChatInputBar: View {
             }
             .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty || isBusy)
         }
+        .onChange(of: speech.transcript) { _, newValue in
+            if speech.isListening {
+                text = newValue
+            }
+        }
+        .onDisappear {
+            if speech.isListening {
+                speech.stopListening()
+            }
+        }
+    }
+
+    private func toggleVoice() {
+        if speech.isListening {
+            speech.stopListening()
+        } else {
+            Task {
+                let granted = await speech.requestAuthorization()
+                if granted {
+                    speech.startListening()
+                }
+            }
+        }
     }
 
     private func sendIfPossible() {
+        if speech.isListening {
+            speech.stopListening()
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isBusy else { return }
         onSend(trimmed)

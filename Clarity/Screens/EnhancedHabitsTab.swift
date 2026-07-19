@@ -97,46 +97,7 @@ struct EnhancedHabitsTab: View {
     
     /// Calculate the current streak for a habit
     private func calculateStreak(for habit: Habit, includingToday: Bool = false) -> Int {
-        let calendar = Calendar.current
-        let habitCheckins = checkins.filter { $0.habit?.id == habit.id }
-        
-        guard !habitCheckins.isEmpty else { return includingToday ? 1 : 0 }
-        
-        // Get all unique days with check-ins, sorted descending
-        var checkinDays = Set(habitCheckins.map { calendar.startOfDay(for: $0.date) })
-        
-        // If including today (for celebration), add today
-        if includingToday {
-            checkinDays.insert(calendar.startOfDay(for: Date()))
-        }
-        
-        let sortedDays = checkinDays.sorted(by: >)
-        guard let mostRecentDay = sortedDays.first else { return includingToday ? 1 : 0 }
-        
-        let today = calendar.startOfDay(for: Date())
-        
-        // If most recent check-in isn't today or yesterday, streak is broken
-        let daysSinceLastCheckin = calendar.dateComponents([.day], from: mostRecentDay, to: today).day ?? 0
-        if daysSinceLastCheckin > 1 {
-            return includingToday ? 1 : 0
-        }
-        
-        // Count consecutive days backwards
-        var streak = 0
-        var currentDay = mostRecentDay
-        
-        for day in sortedDays {
-            if day == currentDay {
-                streak += 1
-                // Move to previous day
-                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay)!
-            } else {
-                // Gap in streak
-                break
-            }
-        }
-        
-        return streak
+        HabitStreakCalculator.currentStreak(checkins: checkins, habitID: habit.id, includingToday: includingToday)
     }
     
     // MARK: - Body

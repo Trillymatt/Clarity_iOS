@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var isEditing = false
     @State private var editName = ""
     @State private var showWeeklyReview = false
+    @State private var exportURL: URL?
     
     init(userEmail: String) {
         self.userEmail = userEmail
@@ -108,6 +109,22 @@ struct ProfileView: View {
                     }
                 }
                 
+                // Data Section
+                Section("Data") {
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                        }
+                    } else {
+                        HStack {
+                            Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                }
+
                 // About Section
                 Section("About") {
                     NavigationLink {
@@ -116,7 +133,7 @@ struct ProfileView: View {
                         Label("Privacy Policy", systemImage: "hand.raised.fill")
                             .foregroundStyle(.primary)
                     }
-                    
+
                     HStack {
                         Label("Version", systemImage: "info.circle.fill")
                         Spacer()
@@ -145,6 +162,9 @@ struct ProfileView: View {
             }
             .onAppear {
                 editName = userName
+                if exportURL == nil {
+                    exportURL = DataExporter.exportCSV(context: context, userEmail: userEmail)
+                }
             }
         }
     }

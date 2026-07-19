@@ -87,7 +87,7 @@ struct AssistantView: View {
                         }
                     }
 
-                    ChatInputBar(placeholder: "Ask Jarvis anything…", text: $inputText, isBusy: isThinking) { text in
+                    ChatInputBar(placeholder: "Ask Jarvis anything…", text: $inputText, isBusy: isThinking, showVoiceButton: true) { text in
                         send(text)
                     }
                     .padding(16)

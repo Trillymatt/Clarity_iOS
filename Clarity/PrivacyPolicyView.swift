@@ -58,7 +58,7 @@ struct PrivacyPolicyView: View {
                     
                     • Access: View all your data within the app
                     • Delete: Remove any data at any time
-                    • Export: Your data is yours (coming soon)
+                    • Export: Download a CSV of your data anytime from Profile
                     
                     Deleting the app will remove all local data permanently.
                     """
