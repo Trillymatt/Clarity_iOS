@@ -165,7 +165,8 @@ struct ActionItemsPreviewSheet: View {
                 date: Date(),
                 title: moment.title,
                 note: moment.note,
-                type: moment.momentType
+                type: moment.momentType,
+                imagesData: nil
             )
             context.insert(lifeMoment)
         }

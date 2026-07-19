@@ -73,7 +73,7 @@ struct SuggestedHabitsView: View {
                             reason: suggestion.reason,
                             isGenerating: generatingHabit == suggestion.name,
                             onAdd: {
-                                addHabitWithAI(title: suggestion.name)
+                                addHabitWithAI(name: suggestion.name, icon: suggestion.icon)
                             }
                         )
                     }
@@ -85,8 +85,9 @@ struct SuggestedHabitsView: View {
         .padding(.vertical)
     }
     
-    private func addHabitWithAI(title: String) {
-        generatingHabit = title
+    /// Adds a habit using AI to personalize details while keeping the exact name
+    private func addHabitWithAI(name: String, icon: String) {
+        generatingHabit = name
         
         Task {
             do {
@@ -101,12 +102,15 @@ struct SuggestedHabitsView: View {
                     nil
                 }
                 
-                let suggestion = try await AIService.shared.generateHabit(for: title, userContext: userContext)
+                let suggestion = try await AIService.shared.generateHabitDetails(
+                    forHabitNamed: name,
+                    userContext: userContext
+                )
                 
                 await MainActor.run {
                     let habit = Habit(
                         ownerEmail: userEmail,
-                        name: suggestion.name,
+                        name: name, // Keep original name - don't use AI's name
                         iconName: suggestion.iconName,
                         goalPerDay: suggestion.goalPerDay,
                         daysOfWeek: suggestion.daysOfWeek,
@@ -119,13 +123,15 @@ struct SuggestedHabitsView: View {
             } catch {
                 print("AI Error: \(error)")
                 await MainActor.run {
-                    // Fallback: Create simple habit if AI fails
+                    // Fallback: Create with default settings
+                    let iconName = mapNameToIcon(name, fallback: icon)
+                    
                     let habit = Habit(
                         ownerEmail: userEmail,
-                        name: title,
-                        iconName: "star.fill",
+                        name: name,
+                        iconName: iconName,
                         goalPerDay: 1,
-                        daysOfWeek: Array(0...6),
+                        daysOfWeek: [], // Empty = daily
                         isActive: true
                     )
                     context.insert(habit)
@@ -133,6 +139,34 @@ struct SuggestedHabitsView: View {
                     generatingHabit = nil
                 }
             }
+        }
+    }
+    
+    /// Maps habit name to SF Symbol
+    private func mapNameToIcon(_ name: String, fallback: String) -> String {
+        switch name.lowercased() {
+        case let n where n.contains("water"): return "drop.fill"
+        case let n where n.contains("exercise") || n.contains("run"): return "figure.run"
+        case let n where n.contains("sleep"): return "bed.double.fill"
+        case let n where n.contains("stretch"): return "figure.flexibility"
+        case let n where n.contains("vitamin"): return "pills.fill"
+        case let n where n.contains("walk") || n.contains("step"): return "figure.walk"
+        case let n where n.contains("meditat"): return "figure.mind.and.body"
+        case let n where n.contains("gratitude") || n.contains("journal"): return "heart.text.square.fill"
+        case let n where n.contains("breath"): return "wind"
+        case let n where n.contains("detox"): return "iphone.slash"
+        case let n where n.contains("quiet") || n.contains("morning"): return "sun.horizon.fill"
+        case let n where n.contains("read"): return "book.fill"
+        case let n where n.contains("learn"): return "graduationcap.fill"
+        case let n where n.contains("skill") || n.contains("practice"): return "target"
+        case let n where n.contains("podcast"): return "headphones"
+        case let n where n.contains("language"): return "character.bubble.fill"
+        case let n where n.contains("plan"): return "list.bullet"
+        case let n where n.contains("time") || n.contains("block"): return "clock.fill"
+        case let n where n.contains("focus"): return "scope"
+        case let n where n.contains("goal") || n.contains("review"): return "checkmark.circle.fill"
+        case let n where n.contains("inbox"): return "envelope.fill"
+        default: return fallback.isEmpty ? "star.fill" : fallback
         }
     }
 }

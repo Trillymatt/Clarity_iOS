@@ -19,6 +19,7 @@ final class UserProfile {
     var idealDay: String?
     var desiredHabit: String?
     var appleUserId: String? // Stable identifier for Apple Sign In
+    @Attribute(.externalStorage) var profileImageData: Data? // Profile photo
     
     init(name: String, email: String, reason: String? = nil, passwordHash: String? = nil) {
         self.name = name
@@ -238,6 +239,9 @@ struct LandingView: View {
                     // Apple Sign In
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.fullName, .email]
+                        let nonce = AppleAuthUtils.randomNonceString()
+                        currentNonce = nonce
+                        request.nonce = AppleAuthUtils.sha256(nonce)
                     } onCompletion: { result in
                         handleAppleSignIn(result: result)
                     }
@@ -303,102 +307,62 @@ struct LandingView: View {
         }
     }
     
+    @State private var currentNonce: String?
+    
     // MARK: - Apple Sign In Handler
     
     private func handleAppleSignIn(result: Result<ASAuthorization, Error>) {
         switch result {
         case .success(let authResults):
             guard let credential = authResults.credential as? ASAuthorizationAppleIDCredential else { return }
+            guard currentNonce != nil else {
+                print("❌ Fatal: Nonce missing")
+                return
+            }
             
             let appleUserId = credential.user
             print("🍎 Apple Sign In - User ID: \(appleUserId)")
             
-            // 1. Look up by stable Apple User ID first (Robust)
-            if let existingProfile = profiles.first(where: { $0.appleUserId == appleUserId }) {
-                print("✅ Found existing profile by Apple ID: \(existingProfile.email)")
-                AuthManager.shared.saveLastUserEmail(existingProfile.email)
-                return
-            }
-            
-            // 2. Fallback check: Look up by email (Legacy/First time)
-            // Note: Apple only provides email on FIRST sign in.
-            // If we have a local mapping, use it.
-            var emailToCheck = credential.email
-            if emailToCheck == nil {
-                emailToCheck = AuthManager.shared.getEmailForAppleUser(appleUserId)
-            }
-            
-            if let email = emailToCheck, !email.isEmpty,
-               let existingProfile = profiles.first(where: { $0.email == email }) {
-                // Link the Apple ID to this existing profile for future logins
-                print("🔗 Linking Apple ID \(appleUserId) to existing profile: \(email)")
-                existingProfile.appleUserId = appleUserId
-                try? context.save()
-                
-                AuthManager.shared.saveLastUserEmail(email)
-                return
-            }
-            
-            // 3. New User or Re-install without email
-            // If we are here, we don't have a profile with this Apple ID,
-            // and we couldn't match by email (either not provided or not in DB).
-            
+            // Extract Name and Email
             let givenName = credential.fullName?.givenName ?? ""
             let familyName = credential.fullName?.familyName ?? ""
-            var email = credential.email ?? ""
-            var name = [givenName, familyName].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            let name = [givenName, familyName].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            let email = credential.email
             
-            if email.isEmpty {
-                // Critical: We need an email for the system.
-                // If Apple hid it and we have no mapping, we must generate a consistent one.
-                email = "apple_\(appleUserId)@privaterelay.appleid.com"
-                print("⚠️ Apple didn't provide email (returning user, fresh install). Using generated: \(email)")
-            }
-            
-            if name.isEmpty {
-                name = "Apple User"
-                print("⚠️ Apple didn't provide name (subsequent login). Using default.")
-            }
-            
-            print("🍎 Final values - Name: '\(name)', Email: '\(email)'")
-            
-            // Save the mapping for future logins
-            AuthManager.shared.saveAppleUserMapping(appleUserId: appleUserId, email: email)
-            
-            // Check if profile already exists
-            if let existingProfile = getExistingProfile(email: email) {
-                if existingProfile.onboardingCompleted {
-                    // User exists and completed onboarding - just restore session
-                    print("✅ Found existing completed profile for: \(email), Name: \(existingProfile.name)")
-                    AuthManager.shared.saveLastUserEmail(email)
-                } else {
-                    // User exists but didn't complete onboarding
-                    // Use fresh name from Apple to override possibly empty profile name
-                    print("⚠️ User exists but onboarding incomplete. Using name: '\(name)'")
-                    print("🎯 Calling onStartOnboarding with name: '\(name)', email: \(existingProfile.email)")
-                    onStartOnboarding(name, existingProfile.email)
+            Task {
+                do {
+                    // 1. Sync to CloudKit (automatic with iCloud)
+                    // We pass available details to ensure record is updated
+                    try await CloudKitService.shared.syncCurrentUser(email: email, displayName: name.isEmpty ? nil : name)
+                    
+                    // 2. Handle Local Clarity Profile
+                    if let existingProfile = profiles.first(where: { $0.appleUserId == appleUserId }) {
+                         AuthManager.shared.saveLastUserEmail(existingProfile.email)
+                    } else if let email = email, let existingProfile = profiles.first(where: { $0.email == email }) {
+                        // Link by email
+                        existingProfile.appleUserId = appleUserId
+                        try? context.save()
+                        AuthManager.shared.saveLastUserEmail(email)
+                    } else {
+                        // New User logic
+                        let finalEmail = email ?? "apple_\(appleUserId)@privaterelay.appleid.com"
+                        let finalName = name.isEmpty ? "Apple User" : name
+                        
+                        let newProfile = UserProfile(name: finalName, email: finalEmail)
+                        newProfile.appleUserId = appleUserId
+                        context.insert(newProfile)
+                        try? context.save()
+                        
+                        onStartOnboarding(finalName, finalEmail)
+                    }
+                } catch {
+                    print("❌ Authentication Failed: \(error.localizedDescription)")
                 }
-            } else {
-                // New user - create minimal profile immediately to capture the name
-                // Apple only provides name on FIRST sign in, so we must save it now
-                print("🆕 New Apple user: \(email), Name: '\(name)'")
-                let newProfile = UserProfile(name: name, email: email)
-                newProfile.onboardingCompleted = false
-                newProfile.appleUserId = appleUserId // Save the ID!
-                context.insert(newProfile)
-                try? context.save()
-                print("💾 Created profile to capture name before onboarding")
-                
-                // Now start onboarding with the saved profile's data
-                print("🎯 Calling onStartOnboarding with name: '\(name)', email: \(email)")
-                onStartOnboarding(name, email)
             }
             
         case .failure(let error):
             print("❌ Apple Sign In failed: \(error.localizedDescription)")
-            if (error as NSError).code == 1000 {
-                print("DEBUG: Missing 'Sign In with Apple' capability. Add it in Xcode > Signing & Capabilities.")
-            }
+            // ... (keep existing error handling if needed)
         }
     }
     
@@ -528,8 +492,13 @@ class ContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding
             return UIWindow(windowScene: firstScene)
         }
         
-        // Absolute fallback - return any window
-        return UIApplication.shared.windows.first ?? UIWindow()
+        // Absolute fallback - return key window from any scene, or a new window
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+             return UIWindow(windowScene: windowScene)
+        }
+        
+        // Final fallback for really old contexts or weird states
+        return UIWindow()
     }
 }
 
@@ -616,7 +585,9 @@ struct RootTabView: View {
                 }
                 .tag(Tab.assistant)
 
-            ProfileView(userEmail: userEmail)
+            ProfileView(userEmail: userEmail) {
+                showTutorial = true
+            }
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle.fill")
                 }
@@ -661,6 +632,8 @@ struct RootTabView: View {
     }
 }
 
+
+
 struct ContentView: View {
     var body: some View { AuthGate() }
 }
@@ -671,131 +644,6 @@ struct ContentView: View {
 
 
 
-
-struct AddTransactionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-    
-    let userEmail: String
-    var prefillAmount: Double = 0.0
-    var prefillCategory: TransactionCategory = .other
-    var prefillNote: String = ""
-    
-    @State private var amount = ""
-    @State private var date = Date()
-    @State private var category: TransactionCategory = .other
-    @State private var note = ""
-    @State private var recurring = false
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.clarityBackground.ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Amount Input (Big & Prominent)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Amount")
-                                .font(.headline)
-                                .padding(.horizontal, 4)
-                            
-                            HStack {
-                                Text("$")
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                                TextField("0.00", text: $amount)
-                                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                                    .keyboardType(.decimalPad)
-                            }
-                            .padding()
-                            .background(Color.clarityCard)
-                            .cornerRadius(16)
-                        }
-                        
-                        // Category Selection
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Category")
-                                .font(.headline)
-                                .padding(.horizontal, 4)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(TransactionCategory.allCases) { cat in
-                                        SelectionChip(
-                                            title: cat.rawValue.capitalized,
-                                            isSelected: category == cat
-                                        ) {
-                                            withAnimation { category = cat }
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 4)
-                            }
-                        }
-                        
-                        // Note
-                        CustomTextField(icon: "note.text", placeholder: "What was this for?", text: $note)
-                        
-                        // Date
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("When?")
-                                .font(.headline)
-                                .padding(.horizontal, 4)
-                            
-                            DatePicker("Date", selection: $date, displayedComponents: [.date])
-                                .datePickerStyle(.graphical)
-                                .padding()
-                                .background(Color.clarityCard)
-                                .cornerRadius(16)
-                        }
-                        
-                        // Recurring Toggle
-                        Toggle(isOn: $recurring) {
-                            Label("Recurring Transaction", systemImage: "repeat")
-                        }
-                        .padding()
-                        .background(Color.clarityCard)
-                        .cornerRadius(12)
-                        
-                        Spacer(minLength: 20)
-                        
-                        Button(action: saveTransaction) {
-                            Text("Add Transaction")
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(Double(amount) == nil || amount.isEmpty)
-                    }
-                    .padding()
-                }
-            }
-            .navigationTitle("Add Transaction")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            }
-            .onAppear {
-                if prefillAmount > 0 {
-                    amount = String(format: "%.2f", prefillAmount)
-                }
-                if prefillCategory != .other {
-                    category = prefillCategory
-                }
-                if !prefillNote.isEmpty {
-                    note = prefillNote
-                }
-            }
-        }
-    }
-    
-    private func saveTransaction() {
-        let value = Double(amount) ?? 0
-        let txn = Transaction(ownerEmail: userEmail, amount: value, date: date, category: category, note: note.isEmpty ? nil : note, isRecurring: recurring)
-        context.insert(txn)
-        try? context.save()
-        dismiss()
-    }
-}
 
 // MARK: - Onboarding Flow
 
@@ -998,7 +846,6 @@ struct OnboardingFlow: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(Color.clarityTeal)
-                .symbolEffect(.bounce)
             
             Text("All Set! Your dashboard is ready.")
                 .font(.title3.bold())
@@ -1217,4 +1064,3 @@ struct FlowLayout<Content: View>: View {
     ContentView()
         .modelContainer(for: [UserProfile.self, TaskItem.self, Habit.self, HabitCheckin.self, JournalEntry.self, LifeMoment.self, Transaction.self, FinancialGoal.self], inMemory: true)
 }
-

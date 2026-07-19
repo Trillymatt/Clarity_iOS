@@ -10,17 +10,17 @@ struct ClarityScoreCard: View {
     
     var body: some View {
         Button(action: { showBreakdown = true }) {
-            GradientCard(gradient: gradientForState(score.state)) {
-                VStack(spacing: 16) {
+            GradientCard(gradient: score.gradient) {
+                VStack(spacing: 8) {
                     // Header
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("Clarity Score")
-                                .font(.clarityCallout)
+                                .font(.caption)
                                 .foregroundStyle(.white.opacity(0.9))
                             
                             Text(score.stateDescription)
-                                .font(.claritySubtitle)
+                                .font(.subheadline.bold())
                                 .foregroundStyle(.white)
                         }
                         
@@ -33,19 +33,19 @@ struct ClarityScoreCard: View {
                     // Score display
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(Int(animateScore ? score.totalScore : 0))")
-                            .font(.clarityScoreLarge)
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .contentTransition(.numericText())
                         
                         Text(score.stateEmoji)
-                            .font(.system(size: 40))
+                            .font(.system(size: 32))
                     }
                     .frame(maxWidth: .infinity)
                     
                     // Micro insight
                     if let mainInsight = generateMainInsight() {
                         Text(mainInsight)
-                            .font(.clarityInsight)
+                            .font(.caption2)
                             .foregroundStyle(.white.opacity(0.95))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
@@ -54,13 +54,13 @@ struct ClarityScoreCard: View {
                     // Tap hint
                     HStack(spacing: 4) {
                         Text("Tap for breakdown")
-                            .font(.clarityCaption)
+                            .font(.caption2)
                         Image(systemName: "chevron.right")
                             .font(.caption2)
                     }
                     .foregroundStyle(.white.opacity(0.7))
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, 4)
             }
         }
         .buttonStyle(.plain)
@@ -74,14 +74,6 @@ struct ClarityScoreCard: View {
         }
     }
     
-    private func gradientForState(_ state: ScoreState) -> LinearGradient {
-        switch state {
-        case .thriving: return .clarityThriving
-        case .growing: return .clarityGrowing
-        case .adjusting: return .clarityAdjusting
-        case .rebuilding: return .clarityRebuilding
-        }
-    }
     
     private func generateMainInsight() -> String? {
         // Generate a supportive insight based on score
@@ -108,11 +100,11 @@ struct TrendIndicator: View {
                 .font(.title3)
             
             Text(trendText)
-                .font(.clarityCaptionBold)
+                .font(.caption.bold())
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
             Capsule()
                 .fill(.white.opacity(0.2))

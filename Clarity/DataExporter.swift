@@ -39,7 +39,9 @@ enum DataExporter {
         let workouts = (try? context.fetch(FetchDescriptor<Workout>(predicate: #Predicate<Workout> { $0.ownerEmail == userEmail }))) ?? []
         csv += "WORKOUTS\ndate,type,duration_min,calories,distance_mi\n"
         for workout in workouts {
-            csv += "\(dateField(workout.date)),\(workout.type.rawValue),\(workout.durationMinutes),\(workout.caloriesBurned.map(String.init) ?? ""),\(workout.distanceMiles.map(String.init) ?? "")\n"
+            let calories = workout.caloriesBurned.map { String($0) } ?? ""
+            let distance = workout.distanceMiles.map { String($0) } ?? ""
+            csv += "\(dateField(workout.date)),\(workout.type.rawValue),\(workout.durationMinutes),\(calories),\(distance)\n"
         }
 
         let fileName = "Clarity-Export-\(Int(Date().timeIntervalSince1970)).csv"

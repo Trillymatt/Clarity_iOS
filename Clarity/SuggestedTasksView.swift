@@ -4,6 +4,7 @@ import SwiftData
 struct SuggestedTasksView: View {
     @Environment(\.modelContext) private var context
     @Query private var profiles: [UserProfile]
+    @Query private var tasks: [TaskItem]
     
     let userEmail: String
     var title: String = "No tasks yet"
@@ -11,91 +12,24 @@ struct SuggestedTasksView: View {
     
     @State private var generatingTask: String? = nil
     
-    // Priority-based task suggestions
-    let priorityTasks: [String: [(String, String, String)]] = [
-        "Career": [
-            ("Update Resume", "📝", "doc.text.fill"),
-            ("Network with Colleague", "🤝", "person.2.fill"),
-            ("Learn New Skill", "🎓", "graduationcap.fill"),
-            ("Review Performance", "📊", "chart.bar.fill"),
-        ],
-        "Health": [
-            ("Schedule Checkup", "🏥", "cross.case.fill"),
-            ("Meal Prep Sunday", "🥗", "carrot.fill"),
-            ("30min Workout", "💪", "figure.run"),
-            ("Track Water Intake", "💧", "drop.fill"),
-        ],
-        "Relationships": [
-            ("Call Family Member", "📞", "phone.fill"),
-            ("Schedule Date Night", "❤️", "heart.fill"),
-            ("Write Thank You", "✉️", "envelope.fill"),
-            ("Plan Hangout", "🎉", "party.popper.fill"),
-        ],
-        "Finance": [
-            ("Review Budget", "💰", "dollarsign.circle.fill"),
-            ("Track Expenses", "📊", "chart.pie.fill"),
-            ("Research Investment", "📈", "chart.line.uptrend.xyaxis"),
-            ("Pay Bills", "💳", "creditcard.fill"),
-        ],
-        "Learning": [
-            ("Read 10 Pages", "📚", "book.fill"),
-            ("Take Online Course", "💻", "laptopcomputer"),
-            ("Practice New Skill", "🎯", "target"),
-            ("Watch Tutorial", "🎬", "play.rectangle.fill"),
-        ]
-    ]
-    
-    // Generic suggestions (fallback)
-    let genericTasks = [
-        ("Morning Routine", "☀️", "sunrise.fill"),
-        ("Review Goals", "🎯", "target"),
-        ("Plan Day", "📅", "calendar"),
-        ("Exercise", "💪", "figure.run"),
-    ]
-    
-    var userProfile: UserProfile? {
-        profiles.first { $0.email == userEmail }
+    init(userEmail: String, title: String = "No tasks yet", subtitle: String = "Here are some suggestions to get started") {
+        self.userEmail = userEmail
+        self.title = title
+        self.subtitle = subtitle
+        _profiles = Query(filter: #Predicate<UserProfile> { $0.email == userEmail })
+        _tasks = Query(filter: #Predicate<TaskItem> { $0.ownerEmail == userEmail })
     }
     
-    var suggestions: [(String, String, String)] {
-        guard let profile = userProfile else {
-            return genericTasks
-        }
-        
-        var personalizedTasks: [(String, String, String)] = []
-        
-        // 1. Add tasks based on biggest priority
-        if let priority = profile.biggestPriority, !priority.isEmpty {
-            // Try to match priority to our categories
-            for (category, tasks) in priorityTasks {
-                if priority.lowercased().contains(category.lowercased()) {
-                    personalizedTasks.append(contentsOf: tasks)
-                    break
-                }
-            }
-        }
-        
-        // 2. Add tasks from focus areas
-        if !profile.focusAreas.isEmpty {
-            for area in profile.focusAreas {
-                if let areaTasks = priorityTasks[area] {
-                    personalizedTasks.append(contentsOf: areaTasks)
-                }
-            }
-        }
-        
-        // 3. Fallback to generic if nothing matched
-        if personalizedTasks.isEmpty {
-            personalizedTasks = genericTasks
-        }
-        
-        // Remove duplicates and limit to 8
-        var seen = Set<String>()
-        return personalizedTasks.filter { task in
-            let isNew = !seen.contains(task.0)
-            seen.insert(task.0)
-            return isNew
-        }.prefix(8).map { $0 }
+    var userProfile: UserProfile? {
+        profiles.first
+    }
+    
+    /// Dynamic suggestions from engine based on user's task data
+    var suggestions: [SuggestionEngine.TaskSuggestion] {
+        SuggestionEngine.shared.generateTaskSuggestions(
+            existingTasks: tasks,
+            userProfile: userProfile
+        )
     }
     
     var body: some View {
@@ -110,14 +44,15 @@ struct SuggestedTasksView: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(suggestions, id: \.0) { suggestion in
+                    ForEach(suggestions) { suggestion in
                         SuggestedTaskCard(
-                            title: suggestion.0,
-                            emoji: suggestion.1,
-                            icon: suggestion.2,
-                            isGenerating: generatingTask == suggestion.0,
+                            title: suggestion.name,
+                            emoji: suggestion.emoji,
+                            icon: suggestion.icon,
+                            reason: suggestion.reason,
+                            isGenerating: generatingTask == suggestion.name,
                             onAdd: {
-                                addTaskWithAI(title: suggestion.0)
+                                addTaskWithAI(title: suggestion.name, category: suggestion.category)
                             }
                         )
                     }
@@ -129,7 +64,7 @@ struct SuggestedTasksView: View {
         .padding(.vertical)
     }
     
-    private func addTaskWithAI(title: String) {
+    private func addTaskWithAI(title: String, category: TaskCategory) {
         generatingTask = title
         
         Task {
@@ -160,7 +95,7 @@ struct SuggestedTasksView: View {
                             dueDate: offsetDate,
                             isCompleted: false,
                             isToday: isSubtaskToday,
-                            category: .personal
+                            category: category
                         )
                         context.insert(task)
                     }
@@ -176,7 +111,7 @@ struct SuggestedTasksView: View {
                         ownerEmail: userEmail,
                         title: title,
                         isToday: true,
-                        category: .personal
+                        category: category
                     )
                     context.insert(task)
                     try? context.save()
@@ -191,6 +126,7 @@ struct SuggestedTaskCard: View {
     let title: String
     let emoji: String
     let icon: String
+    var reason: String? = nil
     let isGenerating: Bool
     let onAdd: () -> Void
     
@@ -221,8 +157,17 @@ struct SuggestedTaskCard: View {
                         .font(.title3)
                         .foregroundStyle(Color.clarityBlue)
                 }
+                
+                // Show personalized reason
+                if let reason = reason, !isGenerating {
+                    Text(reason)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
             }
-            .frame(width: 120, height: 140)
+            .frame(width: 130, height: 160)
             .background(Color.clarityCard)
             .cornerRadius(16)
             .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)

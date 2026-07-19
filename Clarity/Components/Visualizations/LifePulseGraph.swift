@@ -13,24 +13,24 @@ struct LifePulseGraph: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Life Pulse")
-                        .font(.clarityTitle)
+                        .font(.headline)
                     
                     Text("Daily activity & overall score")
-                        .font(.clarityCaption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 
                 Spacer()
                 
-                // Legend
-                HStack(spacing: 16) {
-                    LegendItem(color: .clarityTeal, label: "Completions")
-                    LegendItem(color: .clarityPurple, label: "Clarity Score")
+                // Legend - simplified
+                HStack(spacing: 12) {
+                    LegendItem(color: .clarityTeal, label: "Activity")
+                    LegendItem(color: .clarityPurple, label: "Score")
                 }
             }
             
@@ -62,7 +62,7 @@ struct LifePulseGraph: View {
                             series: .value("Series", "Completions")
                         )
                         .foregroundStyle(Color.clarityTeal)
-                        .lineStyle(StrokeStyle(lineWidth: 3))
+                        .lineStyle(StrokeStyle(lineWidth: 2))
                         .interpolationMethod(.monotone)
                         
                         PointMark(
@@ -70,7 +70,7 @@ struct LifePulseGraph: View {
                             y: .value("Value", Double(point.taskCount + point.habitCount) * 10)
                         )
                         .foregroundStyle(Color.clarityTeal)
-                        .symbolSize(80)
+                        .symbolSize(40)
                     }
                     
                     // Series 2: Clarity Score (0-100 scale)
@@ -81,7 +81,7 @@ struct LifePulseGraph: View {
                             series: .value("Series", "Score")
                         )
                         .foregroundStyle(Color.clarityPurple)
-                        .lineStyle(StrokeStyle(lineWidth: 3, dash: [8, 4]))
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [4, 4]))
                         .interpolationMethod(.monotone)
                         
                         PointMark(
@@ -93,11 +93,11 @@ struct LifePulseGraph: View {
                             Circle()
                                 .strokeBorder(Color.clarityPurple, lineWidth: 2)
                                 .background(Circle().fill(Color.clarityBackground))
-                                .frame(width: 10, height: 10)
+                                .frame(width: 6, height: 6)
                         }
                     }
                 }
-                .frame(height: 200)
+                .frame(height: 140)
                 .chartXAxis {
                     AxisMarks { value in
                         AxisValueLabel()
@@ -109,40 +109,28 @@ struct LifePulseGraph: View {
                     AxisMarks(position: .leading) { value in
                         AxisGridLine()
                             .foregroundStyle(.secondary.opacity(0.2))
-                        AxisValueLabel()
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 .chartYScale(domain: 0...maxValue)
-                
-                // Bottom note
-                HStack {
-                    Spacer()
-                    Text("Completions scaled ×10 for visibility")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary.opacity(0.7))
-                }
-                .padding(.top, 4)
             } else {
                 // Empty state
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 48))
+                        .font(.system(size: 32))
                         .foregroundStyle(.secondary)
                     Text("Complete tasks and habits to see your pulse")
-                        .font(.clarityCaption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                .frame(height: 200)
+                .frame(height: 140)
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding()
+        .padding(12)
         .background(Color.clarityCard)
-        .cornerRadius(20)
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
 }
 

@@ -43,6 +43,7 @@ struct SmallTasksWidgetView: View {
                 Text("remaining")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white.opacity(0.85))
+                    .minimumScaleFactor(0.8)
             }
             
             Spacer()
@@ -51,6 +52,8 @@ struct SmallTasksWidgetView: View {
             Text(entry.data.taskCompletionText)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.white.opacity(0.8))
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
         }
         .padding(16)
     }
@@ -229,6 +232,7 @@ struct TaskRowView: View {
                 .foregroundColor(task.isCompleted ? .white.opacity(0.5) : .white)
                 .strikethrough(task.isCompleted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             
             Spacer(minLength: 0)
             
@@ -237,6 +241,7 @@ struct TaskRowView: View {
                 Text(dueTime, style: .time)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.6))
+                    .minimumScaleFactor(0.8)
             }
         }
         .padding(.horizontal, 12)
@@ -287,6 +292,7 @@ struct AccessoryRectangularTasksWidgetView: View {
                         Text(task.title)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                 }
             }

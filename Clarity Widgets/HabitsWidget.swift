@@ -56,6 +56,7 @@ struct SmallHabitsWidgetView: View {
                         Text("\(Int(progress * 100))%")
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
+                            .minimumScaleFactor(0.5)
                     }
                 }
                 
@@ -289,6 +290,7 @@ struct HabitRowView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 
                 HStack(spacing: 6) {
                     Text("\(habit.progress)/\(habit.goal)")

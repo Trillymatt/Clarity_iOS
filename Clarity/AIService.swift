@@ -155,24 +155,24 @@ class AIService {
         The user wants to build a habit related to: "\(goal)".
         
         Using their context, priorities, and ideal day to inform your suggestion:
-        1. Create a specific, actionable habit name that aligns with their goals (e.g., "Read 10 Pages" instead of "Read more").
-        2. Choose a relevant SF Symbol name for the icon (e.g., "book.fill", "figure.run", "heart.fill").
-        3. Suggest a realistic daily goal (integer) that fits their daily rhythm.
-        4. Suggest best days of the week (array of integers, 0=Sunday, 1=Monday... 6=Saturday).
+        1. Create a specific, actionable habit name (e.g., "Morning Run" instead of "Exercise more").
+        2. Choose a relevant SF Symbol name for the icon (e.g., "book.fill", "figure.run", "heart.fill", "dumbbell.fill").
+        3. goalPerDay is NOT minutes/duration - it's the number of times they need to check in per day. This should almost always be 1 (one check-in per day). Only use 2-3 for habits like "drink water" where multiple check-ins make sense.
+        4. daysOfWeek uses Calendar weekday integers: 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday. Use empty array [] for daily habits.
         
         Return JSON ONLY:
         {
             "name": "Habit Name",
             "iconName": "star.fill",
             "goalPerDay": 1,
-            "daysOfWeek": [1, 2, 3, 4, 5]
+            "daysOfWeek": []
         }
         """
         
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": "You are a helpful habit coach. Return only JSON."],
+                ["role": "system", "content": "You are a helpful habit coach. Return only JSON. Remember: goalPerDay is check-ins NOT minutes."],
                 ["role": "user", "content": prompt]
             ],
             "temperature": 0.7,
@@ -207,9 +207,111 @@ class AIService {
             throw AIError.decodingError
         }
         
-        return suggestion
+        // Validate and clamp goalPerDay to reasonable range (1-5)
+        let clampedGoal = max(1, min(5, suggestion.goalPerDay))
+        
+        // Validate daysOfWeek (should be 1-7 or empty)
+        let validDays = suggestion.daysOfWeek.filter { $0 >= 1 && $0 <= 7 }
+        
+        return HabitSuggestion(
+            name: suggestion.name,
+            iconName: suggestion.iconName,
+            goalPerDay: clampedGoal,
+            daysOfWeek: validDays
+        )
     }
     
+    /// Generate personalized details for a habit with a fixed name
+    /// This is used for pre-defined suggestions where we keep the name but personalize icon/schedule
+    func generateHabitDetails(forHabitNamed habitName: String, userContext: UserContext? = nil) async throws -> HabitSuggestion {
+        guard let url = URL(string: openAIURL) else { throw AIError.invalidURL }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let contextInfo = userContext?.contextDescription ?? "No additional context provided."
+        
+        let prompt = """
+        You are an expert behavior scientist helping a user with Clarity, a life management app.
+        
+        USER CONTEXT: \(contextInfo)
+        
+        The user wants to add this exact habit: "\(habitName)"
+        
+        IMPORTANT: The habit name is FIXED - do NOT change or modify the name. It MUST be exactly "\(habitName)".
+        
+        Your job is to personalize the other details based on the user's context:
+        1. Choose a relevant SF Symbol name for the icon (e.g., "book.fill", "figure.run", "heart.fill", "dumbbell.fill", "clock.fill")
+        2. Suggest the best days using Calendar weekday integers: 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday.
+           Common patterns:
+           - Daily: [] (empty array)
+           - Weekdays (Mon-Fri): [2, 3, 4, 5, 6]
+           - Weekends (Sat-Sun): [1, 7]
+           - Every other day: [2, 4, 6]
+        3. goalPerDay should almost always be 1 (one check-in per day).
+        
+        Return JSON ONLY:
+        {
+            "name": "\(habitName)",
+            "iconName": "star.fill",
+            "goalPerDay": 1,
+            "daysOfWeek": [2, 3, 4, 5, 6]
+        }
+        """
+        
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": "You are a helpful habit coach. Return only JSON. NEVER change the habit name - use it exactly as given."],
+                ["role": "user", "content": prompt]
+            ],
+            "temperature": 0.5, // Lower temperature for more consistent icon/schedule choices
+            "response_format": ["type": "json_object"]
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else { throw AIError.noData }
+        
+        if httpResponse.statusCode != 200 {
+            throw AIError.apiError("Status code: \(httpResponse.statusCode)")
+        }
+        
+        struct OpenAIResponse: Decodable {
+            struct Choice: Decodable {
+                struct Message: Decodable {
+                    let content: String
+                }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+        
+        let decodedResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
+        guard let content = decodedResponse.choices.first?.message.content else { throw AIError.noData }
+        
+        guard let jsonData = content.data(using: .utf8),
+              let suggestion = try? JSONDecoder().decode(HabitSuggestion.self, from: jsonData) else {
+            throw AIError.decodingError
+        }
+        
+        // Validate and ensure original name is preserved
+        let clampedGoal = max(1, min(5, suggestion.goalPerDay))
+        let validDays = suggestion.daysOfWeek.filter { $0 >= 1 && $0 <= 7 }
+        
+        return HabitSuggestion(
+            name: habitName, // Always use the original name, ignore AI's returned name
+            iconName: suggestion.iconName,
+            goalPerDay: clampedGoal,
+            daysOfWeek: validDays
+        )
+    }
+
     // MARK: - Extract Action Items from Weekly Review
     
     func extractActionItems(from reflection: String) async throws -> ExtractedItems {

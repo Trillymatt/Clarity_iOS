@@ -32,7 +32,9 @@ enum ClarityModelContainer {
     /// gracefully rather than attempt any destructive recovery; that's the
     /// main app's job at launch, not a background intent's.
     static func open() throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // .none matches ClarityApp: SwiftData is local-only; CloudKit is used
+        // directly by CloudKitService, not for store mirroring.
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 }

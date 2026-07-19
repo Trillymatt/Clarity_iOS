@@ -107,145 +107,49 @@ struct DashboardView: View {
         }
     }
 
+    private var scoreRevision: [Int] {
+        [
+            tasks.count,
+            tasks.filter(\.isCompleted).count,
+            habitCheckins.count,
+            moments.count,
+            moodEntries.count,
+            transactions.count,
+            workouts.count,
+            bodyMetrics.count,
+            currentGoals.dailyStepGoal,
+            currentGoals.weeklyWorkoutGoal
+        ]
+    }
+
+    private var weekStart: Date {
+        Calendar.current.date(
+            byAdding: .day,
+            value: -6,
+            to: Calendar.current.startOfDay(for: Date())
+        ) ?? Date()
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(timeBasedGreeting)
-                                .font(.claritySubtitle)
-                                .foregroundStyle(.secondary)
-                            Text(userName)
-                                .font(.clarityHero)
-                        }
-                        Spacer()
-                        Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 40, height: 40)
-                                .background(.ultraThinMaterial, in: Circle())
-                        }
-                        Button(action: { selectedTab?.wrappedValue = .profile }) {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundStyle(LinearGradient.clarityPrimary)
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    // Mood Check-in (conditional)
-                    if shouldShowMoodCheckIn {
-                        Button(action: { showMoodCheckIn = true }) {
-                            SoftCard {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("How are you feeling?")
-                                            .font(.clarityTitle)
-                                            .foregroundStyle(.primary)
-                                        Text("Check in with yourself")
-                                            .font(.clarityCaption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "face.smiling")
-                                        .font(.system(size: 32))
-                                        .foregroundStyle(LinearGradient.clarityPrimary)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal)
-                    }
-
-                    // Weekly Review (conditional)
-                    if shouldShowWeeklyReview {
-                        WeeklyReviewPrompt(showReview: $showWeeklyReview)
-                            .padding(.horizontal)
-                    }
-
-                    // JARVIS BRIEF — a holistic, cross-domain read of the day
-                    JarvisBriefCard(
-                        userName: userName,
-                        userContext: userContext,
-                        tasks: tasks,
-                        habits: habits,
-                        checkins: habitCheckins,
-                        moodEntries: moodEntries,
-                        workouts: workouts,
-                        transactions: transactions,
-                        onOpenAssistant: { selectedTab?.wrappedValue = .assistant }
-                    )
-                    .padding(.horizontal)
-
-                    // TODAY'S GOALS — the WHOOP-style "where do I stand" ring row
-                    TodayGoalsCard(
-                        goals: currentGoals,
-                        todaySteps: bodyMetrics.first { Calendar.current.isDateInToday($0.date) }?.steps,
-                        weekWorkouts: workouts.filter { $0.date >= (Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()) }.count,
-                        tasksCompletedToday: tasks.filter { $0.isCompleted && $0.completedDate != nil && Calendar.current.isDateInToday($0.completedDate!) }.count,
-                        weekSpend: transactions.filter { $0.date >= (Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()) }.reduce(0) { $0 + $1.amount },
-                        onEdit: { showEditGoals = true }
-                    )
-                    .padding(.horizontal)
-
-                    // RECOMMENDATIONS — specific, actionable, not just "everything's fine"
-                    if !recommendations.isEmpty {
-                        RecommendationsCard(recommendations: recommendations)
-                            .padding(.horizontal)
-                    }
-
-                    // TODAY'S FOCUS
-                    TodaysFocusSection(tasks: tasks, context: context, onSeeAll: { showFocusDetail = true })
-
-                    // FITNESS MODULE
-                    FitnessPreviewSection(workouts: workouts, bodyMetrics: bodyMetrics, onSeeAll: { showFitnessDetail = true })
-
-                    // LIFE PULSE GRAPH (SIGNATURE VIZ)
-                    let pulseData = LifePulseDataGenerator.generateWeekData(
-                        tasks: tasks,
-                        checkins: habitCheckins,
-                        habits: habits,
-                        moodEntries: moodEntries,
-                        moments: moments,
-                        transactions: transactions
-                    )
-                    Button(action: { showTrends = true }) {
-                        LifePulseGraph(pulseData: pulseData)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
-
-                    // HABITS PREVIEW
-                    HabitsPreviewSection(habits: habits, onSeeAll: { showHabitsDetail = true })
-
-                    // MONEY MODULE
-                    FinancePreviewSection(transactions: transactions, onSeeAll: { showFinanceDetail = true })
-
-                    // MOMENTS PREVIEW
-                    MomentsPreviewSection(moments: moments, onSeeAll: { showMomentsDetail = true })
-
-                    // CLARITY SCORE — still here, just no longer the headline
-                    if let score = currentScore {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Clarity Score")
-                                .font(.clarityCaptionBold)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 4)
-                            ClarityScoreCard(score: score)
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    Spacer(minLength: 90)
-                }
-                .padding(.top)
+            dashboardWithSheets
+            .refreshable {
+                calculateCurrentScore()
             }
-            .background(Color.clarityBackground.ignoresSafeArea())
-            .navigationTitle("")
-            .toolbar(.hidden)
+            .onAppear {
+                if userGoalsList.isEmpty {
+                    _ = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
+                }
+                calculateCurrentScore()
+            }
+            .onChange(of: scoreRevision) { _, _ in
+                calculateCurrentScore()
+            }
+        }
+    }
+
+    private var dashboardWithSheets: some View {
+        dashboardScrollView
             .sheet(isPresented: $showMoodCheckIn) {
                 MoodCheckInView(userEmail: userEmail)
                     .presentationDetents([.medium, .large])
@@ -287,45 +191,151 @@ struct DashboardView: View {
                         }
                 }
             }
-            .refreshable {
-                calculateCurrentScore()
+    }
+
+    private var dashboardScrollView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                dashboardHeader
+                dashboardOverviewSections
+                dashboardDomainSections
+                dashboardScoreSection
+                Spacer(minLength: 90)
             }
-            .onAppear {
-                if userGoalsList.isEmpty {
-                    _ = UserGoals.fetchOrCreate(context: context, ownerEmail: userEmail)
+            .padding(.top)
+        }
+        .background(Color.clarityBackground.ignoresSafeArea())
+        .navigationTitle("")
+        .toolbar(.hidden)
+    }
+
+    private var dashboardHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(timeBasedGreeting)
+                    .font(.claritySubtitle)
+                    .foregroundStyle(.secondary)
+                Text(userName)
+                    .font(.clarityHero)
+            }
+            Spacer()
+            Button(action: { showSearch = true }) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            Button(action: { selectedTab?.wrappedValue = .profile }) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(LinearGradient.clarityPrimary)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var dashboardOverviewSections: some View {
+        if shouldShowMoodCheckIn {
+            Button(action: { showMoodCheckIn = true }) {
+                SoftCard {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("How are you feeling?")
+                                .font(.clarityTitle)
+                                .foregroundStyle(.primary)
+                            Text("Check in with yourself")
+                                .font(.clarityCaption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "face.smiling")
+                            .font(.system(size: 32))
+                            .foregroundStyle(LinearGradient.clarityPrimary)
+                    }
                 }
-                calculateCurrentScore()
             }
-            .onChange(of: tasks.count) { _, _ in
-                calculateCurrentScore()
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+        }
+
+        if shouldShowWeeklyReview {
+            WeeklyReviewPrompt(showReview: $showWeeklyReview)
+                .padding(.horizontal)
+        }
+
+        JarvisBriefCard(
+            userName: userName,
+            userContext: userContext,
+            tasks: tasks,
+            habits: habits,
+            checkins: habitCheckins,
+            moodEntries: moodEntries,
+            workouts: workouts,
+            transactions: transactions,
+            onOpenAssistant: { selectedTab?.wrappedValue = .assistant }
+        )
+        .padding(.horizontal)
+
+        TodayGoalsCard(
+            goals: currentGoals,
+            todaySteps: bodyMetrics.first { Calendar.current.isDateInToday($0.date) }?.steps,
+            weekWorkouts: workouts.filter { $0.date >= weekStart }.count,
+            tasksCompletedToday: tasks.filter {
+                $0.isCompleted
+                    && $0.completedDate != nil
+                    && Calendar.current.isDateInToday($0.completedDate!)
+            }.count,
+            weekSpend: transactions
+                .filter { $0.date >= weekStart }
+                .reduce(0) { $0 + $1.amount },
+            onEdit: { showEditGoals = true }
+        )
+        .padding(.horizontal)
+
+        if !recommendations.isEmpty {
+            RecommendationsCard(recommendations: recommendations)
+                .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var dashboardDomainSections: some View {
+        TodaysFocusSection(tasks: tasks, context: context, onSeeAll: { showFocusDetail = true })
+        FitnessPreviewSection(workouts: workouts, bodyMetrics: bodyMetrics, onSeeAll: { showFitnessDetail = true })
+
+        Button(action: { showTrends = true }) {
+            LifePulseGraph(
+                pulseData: LifePulseDataGenerator.generateWeekData(
+                    tasks: tasks,
+                    checkins: habitCheckins,
+                    habits: habits,
+                    moodEntries: moodEntries,
+                    moments: moments,
+                    transactions: transactions
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+
+        HabitsPreviewSection(habits: habits, onSeeAll: { showHabitsDetail = true })
+        FinancePreviewSection(transactions: transactions, onSeeAll: { showFinanceDetail = true })
+        MomentsPreviewSection(moments: moments, onSeeAll: { showMomentsDetail = true })
+    }
+
+    @ViewBuilder
+    private var dashboardScoreSection: some View {
+        if let score = currentScore {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Clarity Score")
+                    .font(.clarityCaptionBold)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                ClarityScoreCard(score: score)
             }
-            .onChange(of: tasks.filter { $0.isCompleted }.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: habitCheckins.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: moments.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: moodEntries.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: transactions.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: workouts.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: bodyMetrics.count) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: currentGoals.dailyStepGoal) { _, _ in
-                calculateCurrentScore()
-            }
-            .onChange(of: currentGoals.weeklyWorkoutGoal) { _, _ in
-                calculateCurrentScore()
-            }
+            .padding(.horizontal)
         }
     }
 
@@ -487,7 +497,7 @@ struct TodaysFocusSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             SectionHeader(
                 title: "Today's Focus",
                 insight: "\(todaysTasks.count) tasks",
@@ -498,14 +508,14 @@ struct TodaysFocusSection: View {
 
             if todaysTasks.isEmpty {
                 SoftCard {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 40))
+                            .font(.system(size: 32))
                             .foregroundStyle(LinearGradient.claritySuccess)
                         Text("All caught up!")
-                            .font(.clarityTitle)
+                            .font(.headline)
                         Text("No urgent tasks for today")
-                            .font(.clarityBody)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -513,7 +523,7 @@ struct TodaysFocusSection: View {
                 }
                 .padding(.horizontal)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     ForEach(todaysTasks.prefix(3)) { task in
                         TaskRow(task: task)
                             .padding()
