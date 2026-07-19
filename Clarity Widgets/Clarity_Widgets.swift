@@ -59,6 +59,7 @@ struct SmallClarityWidgetView: View {
             Text("\(entry.data.clarityScore)")
                 .font(.system(size: 56, weight: .black, design: .rounded))
                 .foregroundColor(.white)
+                .minimumScaleFactor(0.5)
             
             // Label
             Text("Clarity")
@@ -71,6 +72,8 @@ struct SmallClarityWidgetView: View {
             Text(entry.data.taskCompletionText)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.white.opacity(0.85))
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
                 .padding(.bottom, 8)
         }
     }
@@ -93,6 +96,7 @@ struct MediumClarityWidgetView: View {
                 Text("\(entry.data.clarityScore)")
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .foregroundColor(.white)
+                    .minimumScaleFactor(0.5)
                 
                 Text("Clarity")
                     .font(.system(size: 12, weight: .semibold))
@@ -138,6 +142,7 @@ struct MediumClarityWidgetView: View {
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.7))
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
                         Text("\(entry.data.primaryHabitProgress)/\(entry.data.primaryHabitGoal)")
                             .font(.system(size: 16, weight: .bold))

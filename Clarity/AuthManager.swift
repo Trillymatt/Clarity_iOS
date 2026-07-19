@@ -1,8 +1,9 @@
 import Foundation
 import Security
+import Combine
 
 /// Manages persistent authentication state using Keychain
-class AuthManager {
+class AuthManager: ObservableObject {
     static let shared = AuthManager()
     
     private let service = "com.clarity.app"

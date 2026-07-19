@@ -309,4 +309,207 @@ class SuggestionEngine {
         
         return "other"
     }
+    
+    // MARK: - Task Suggestions
+    
+    struct TaskSuggestion: Identifiable {
+        let id = UUID()
+        let name: String
+        let emoji: String
+        let icon: String
+        let category: TaskCategory
+        let reason: String?
+    }
+    
+    /// All possible task suggestions organized by category and context
+    private let taskSuggestionsByCategory: [TaskCategory: [TaskSuggestion]] = [
+        .work: [
+            TaskSuggestion(name: "Clear inbox to zero", emoji: "📧", icon: "envelope.fill", category: .work, reason: nil),
+            TaskSuggestion(name: "Review project status", emoji: "📊", icon: "chart.bar.fill", category: .work, reason: nil),
+            TaskSuggestion(name: "Schedule team meeting", emoji: "👥", icon: "person.2.fill", category: .work, reason: nil),
+            TaskSuggestion(name: "Update documentation", emoji: "📝", icon: "doc.text.fill", category: .work, reason: nil),
+            TaskSuggestion(name: "Follow up on pending items", emoji: "📋", icon: "list.bullet", category: .work, reason: nil),
+            TaskSuggestion(name: "Prepare presentation", emoji: "🎯", icon: "rectangle.inset.filled", category: .work, reason: nil),
+            TaskSuggestion(name: "Review metrics/analytics", emoji: "📈", icon: "chart.line.uptrend.xyaxis", category: .work, reason: nil),
+        ],
+        .school: [
+            TaskSuggestion(name: "Review lecture notes", emoji: "📚", icon: "book.fill", category: .school, reason: nil),
+            TaskSuggestion(name: "Start assignment", emoji: "✏️", icon: "pencil", category: .school, reason: nil),
+            TaskSuggestion(name: "Study for exam", emoji: "🎓", icon: "graduationcap.fill", category: .school, reason: nil),
+            TaskSuggestion(name: "Research topic", emoji: "🔍", icon: "magnifyingglass", category: .school, reason: nil),
+            TaskSuggestion(name: "Practice problems", emoji: "🧮", icon: "function", category: .school, reason: nil),
+            TaskSuggestion(name: "Meet with study group", emoji: "👨‍🎓", icon: "person.3.fill", category: .school, reason: nil),
+            TaskSuggestion(name: "Office hours visit", emoji: "🏫", icon: "building.columns.fill", category: .school, reason: nil),
+        ],
+        .personal: [
+            TaskSuggestion(name: "Meal prep for week", emoji: "🥗", icon: "carrot.fill", category: .personal, reason: nil),
+            TaskSuggestion(name: "Call family/friend", emoji: "📞", icon: "phone.fill", category: .personal, reason: nil),
+            TaskSuggestion(name: "Schedule appointment", emoji: "📅", icon: "calendar", category: .personal, reason: nil),
+            TaskSuggestion(name: "Organize space", emoji: "🏠", icon: "house.fill", category: .personal, reason: nil),
+            TaskSuggestion(name: "Self-care time", emoji: "🧘", icon: "figure.mind.and.body", category: .personal, reason: nil),
+            TaskSuggestion(name: "Review goals", emoji: "🎯", icon: "target", category: .personal, reason: nil),
+            TaskSuggestion(name: "Plan next week", emoji: "📋", icon: "list.bullet.clipboard", category: .personal, reason: nil),
+        ]
+    ]
+    
+    /// Day-specific task suggestions
+    private func daySpecificTaskSuggestions() -> [TaskSuggestion] {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        
+        switch weekday {
+        case 1: // Sunday
+            return [
+                TaskSuggestion(name: "Plan week ahead", emoji: "📅", icon: "calendar", category: .personal, reason: "Start your week organized"),
+                TaskSuggestion(name: "Meal prep", emoji: "🍱", icon: "takeoutbag.and.cup.and.straw.fill", category: .personal, reason: "Prep for busy weekdays"),
+            ]
+        case 2: // Monday
+            return [
+                TaskSuggestion(name: "Set weekly priorities", emoji: "🎯", icon: "target", category: .work, reason: "Fresh start to the week"),
+                TaskSuggestion(name: "Review calendar", emoji: "👀", icon: "calendar.badge.clock", category: .work, reason: "Know what's ahead"),
+            ]
+        case 6: // Friday
+            return [
+                TaskSuggestion(name: "Week review", emoji: "📊", icon: "chart.bar.fill", category: .work, reason: "Reflect on accomplishments"),
+                TaskSuggestion(name: "Clear pending items", emoji: "✅", icon: "checkmark.circle.fill", category: .work, reason: "End week strong"),
+            ]
+        case 7: // Saturday
+            return [
+                TaskSuggestion(name: "Errands", emoji: "🛒", icon: "cart.fill", category: .personal, reason: "Weekend to-dos"),
+                TaskSuggestion(name: "Connect with friends", emoji: "👋", icon: "hand.wave.fill", category: .personal, reason: "Social time"),
+            ]
+        default:
+            return []
+        }
+    }
+    
+    /// Time-of-day specific suggestions
+    private func timeBasedTaskSuggestions() -> [TaskSuggestion] {
+        let hour = Calendar.current.component(.hour, from: Date())
+        
+        if hour < 10 { // Morning
+            return [
+                TaskSuggestion(name: "Plan today's priorities", emoji: "☀️", icon: "sunrise.fill", category: .personal, reason: "Start day with intention"),
+            ]
+        } else if hour >= 16 { // Afternoon/Evening
+            return [
+                TaskSuggestion(name: "Review day's progress", emoji: "🌅", icon: "sunset.fill", category: .personal, reason: "End-of-day reflection"),
+            ]
+        }
+        return []
+    }
+    
+    /// Generate personalized task suggestions based on user's data
+    /// - Parameters:
+    ///   - existingTasks: User's current tasks (to understand their patterns)
+    ///   - userProfile: User's profile for focus areas
+    /// - Returns: Array of personalized task suggestions
+    func generateTaskSuggestions(existingTasks: [TaskItem], userProfile: UserProfile?) -> [TaskSuggestion] {
+        var suggestions: [TaskSuggestion] = []
+        
+        // Seed random with date for consistent daily suggestions
+        let calendar = Calendar.current
+        let dayComponent = calendar.component(.day, from: Date())
+        let monthComponent = calendar.component(.month, from: Date())
+        var rng = SeededRandomNumberGenerator(seed: UInt64(dayComponent * 100 + monthComponent))
+        
+        // 1. Add day-specific suggestions first (priority)
+        suggestions.append(contentsOf: daySpecificTaskSuggestions())
+        
+        // 2. Add time-based suggestions
+        suggestions.append(contentsOf: timeBasedTaskSuggestions())
+        
+        // 3. Analyze user's task patterns
+        let incompleteTasks = existingTasks.filter { !$0.isCompleted }
+        let categoryCount = Dictionary(grouping: incompleteTasks, by: { $0.category }).mapValues { $0.count }
+        
+        // Find user's primary category
+        let sortedCategories = categoryCount.sorted { $0.value > $1.value }
+        let primaryCategory = sortedCategories.first?.key ?? .personal
+        
+        // 4. Add suggestions weighted toward user's primary category
+        if let categorySuggestions = taskSuggestionsByCategory[primaryCategory] {
+            // Filter out tasks that are similar to what user already has
+            let existingTitles = Set(existingTasks.map { $0.title.lowercased() })
+            let filtered = categorySuggestions.filter { suggestion in
+                !existingTitles.contains { $0.contains(suggestion.name.lowercased().prefix(10)) }
+            }
+            
+            let withReason = filtered.prefix(3).map { task in
+                TaskSuggestion(
+                    name: task.name,
+                    emoji: task.emoji,
+                    icon: task.icon,
+                    category: task.category,
+                    reason: "Based on your \(primaryCategory.rawValue) focus"
+                )
+            }
+            suggestions.append(contentsOf: withReason)
+        }
+        
+        // 5. Add variety from other categories
+        for (category, categoryTasks) in taskSuggestionsByCategory where category != primaryCategory {
+            let picked = categoryTasks.shuffled(using: &rng).prefix(1)
+            suggestions.append(contentsOf: picked)
+        }
+        
+        // 6. Use focus areas from profile
+        if let profile = userProfile {
+            for area in profile.focusAreas.prefix(2) {
+                let areaLower = area.lowercased()
+                
+                // Map focus areas to categories
+                let matchedCategory: TaskCategory? = if areaLower.contains("career") || areaLower.contains("work") {
+                    .work
+                } else if areaLower.contains("school") || areaLower.contains("learn") {
+                    .school
+                } else {
+                    .personal
+                }
+                
+                if let cat = matchedCategory, let tasks = taskSuggestionsByCategory[cat] {
+                    let areaTask = tasks.shuffled(using: &rng).first.map { task in
+                        TaskSuggestion(
+                            name: task.name,
+                            emoji: task.emoji,
+                            icon: task.icon,
+                            category: task.category,
+                            reason: "Supports your \(area) goal"
+                        )
+                    }
+                    if let task = areaTask {
+                        suggestions.append(task)
+                    }
+                }
+            }
+        }
+        
+        // Remove duplicates and shuffle with date-seed
+        var seen = Set<String>()
+        let unique = suggestions.filter { task in
+            let isNew = !seen.contains(task.name)
+            seen.insert(task.name)
+            return isNew
+        }
+        
+        // Prioritize day/time suggestions, then shuffle the rest
+        let priority = unique.filter { $0.reason != nil }
+        let nonPriority = unique.filter { $0.reason == nil }.shuffled(using: &rng)
+        
+        return Array((priority + nonPriority).prefix(8))
+    }
+}
+
+// MARK: - Seeded Random Number Generator
+
+struct SeededRandomNumberGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    
+    init(seed: UInt64) {
+        self.state = seed
+    }
+    
+    mutating func next() -> UInt64 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return state
+    }
 }

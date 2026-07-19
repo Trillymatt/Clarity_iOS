@@ -27,6 +27,7 @@ struct WeeklyReviewView: View {
     @State private var extractedItems: ExtractedItems?
     @State private var isExtracting = false
     @State private var reviewSaved = false // Prevent double-saving
+    @State private var showSavedConfirmation = false
     @State private var showError = false
     @State private var errorMessage = ""
     
@@ -286,6 +287,22 @@ struct WeeklyReviewView: View {
             }
         )
     }
+    .overlay {
+        if showSavedConfirmation {
+            VStack(spacing: 16) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 50))
+                    .foregroundStyle(.green)
+                Text("Saved!")
+                    .font(.headline)
+            }
+            .padding(30)
+            .background(.regularMaterial)
+            .cornerRadius(20)
+            .shadow(radius: 10)
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
     .alert("Unable to Extract Items", isPresented: $showError) {
         Button("OK", role: .cancel) { }
     } message: {
@@ -414,7 +431,18 @@ struct WeeklyReviewView: View {
         UserDefaults.standard.set(Date(), forKey: "lastWeeklyReview")
         reviewSaved = true
         print("✅ Review saved successfully")
-        // Don't dismiss - keep view open for extraction
+        
+        // Show confirmation overlay
+        withAnimation {
+            showSavedConfirmation = true
+        }
+        
+        // Hide after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation {
+                showSavedConfirmation = false
+            }
+        }
     }
     
     private func extractActionItems() {

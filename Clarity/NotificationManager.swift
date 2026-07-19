@@ -36,22 +36,31 @@ struct NotificationMessages {
         ("Keep the Momentum", "Ready for {habit}? Let's go!")
     ]
     
+    // MARK: - Habit Quit Reminder Messages
+    static let habitQuitReminder = [
+        ("Stay Strong! 🛡️", "Remember your goal: No {habit} today. You can do this!"),
+        ("Urge Surfing 🌊", "Feeling the urge for {habit}? Take a deep breath. It will pass."),
+        ("Protect Your Streak", "Your clean streak is active. Don't let {habit} break it!"),
+        ("Future You Says Thanks", "Saying NO to {habit} right now is a victory."),
+        ("You Are In Control", "You are stronger than {habit}. Keep going!")
+    ]
+    
     // MARK: - Morning Motivation Messages
     static let morningMotivation = [
-        ("Good Morning! ☀️", "You have {count} tasks today. Ready to make it count?"),
-        ("Rise & Shine", "A new day, new possibilities. What will you accomplish?"),
-        ("Morning Focus", "Today's priority: {task}. You've got this!"),
-        ("Start Strong", "Your {count} tasks await. Let's make today great!"),
-        ("Fresh Start", "Every morning is a chance to be better. Let's go!")
+        ("Good Morning! ☀️", "You have {count} tasks today: {tasksList}. Ready to make it count?"),
+        ("Rise & Shine", "Today's focus: {tasksList}. You've got this!"),
+        ("Morning Focus", "Top priority: {tasksList}. Let's get started."),
+        ("Start Strong", "Your day starts with {tasksList}. Let's crush it!"),
+        ("Fresh Start", "Time to tackle {tasksList}. Go for it!")
     ]
     
     // MARK: - Afternoon Reminder Messages
     static let afternoonReminder = [
-        ("Afternoon Check", "You have {count} tasks left. Need a focus boost?"),
-        ("Midday Nudge", "{count} tasks remaining — you've still got time!"),
-        ("Stay on Track", "A little afternoon push: {count} tasks to go."),
-        ("Power Through", "The day's not over! {count} tasks waiting for you."),
-        ("Quick Check-in", "How's your focus? {count} tasks left today.")
+        ("Afternoon Check", "You have {count} tasks left: {tasksList}. Need a focus boost?"),
+        ("Midday Nudge", "{count} tasks remaining: {tasksList}."),
+        ("Stay on Track", "A little afternoon push for: {tasksList}."),
+        ("Power Through", "The day's not over! Left to do: {tasksList}."),
+        ("Quick Check-in", "How's your focus? Still on the list: {tasksList}.")
     ]
     
     // MARK: - Evening Recap Messages
@@ -132,7 +141,7 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Habit Notifications
     
-    func scheduleHabitReminder(habitId: UUID, habitName: String, reminderTime: Date, daysOfWeek: [Int]) {
+    func scheduleHabitReminder(habitId: UUID, habitName: String, habitType: HabitType = .build, reminderTime: Date, daysOfWeek: [Int]) {
         // Cancel existing notifications for this habit
         cancelHabitReminder(habitId: habitId)
 
@@ -158,7 +167,9 @@ class NotificationManager: ObservableObject {
             dateComponents.minute = minute
             
             // Use varied messages for habit reminders
-            let message = NotificationMessages.random(from: NotificationMessages.habitReminder)
+            let message = habitType == .quit 
+                ? NotificationMessages.random(from: NotificationMessages.habitQuitReminder)
+                : NotificationMessages.random(from: NotificationMessages.habitReminder)
             
             let content = UNMutableNotificationContent()
             content.title = message.title
@@ -318,33 +329,23 @@ class NotificationManager: ObservableObject {
     // MARK: - Morning Motivation Notifications
     
     func scheduleMorningMotivation(enabled: Bool, time: Date? = nil, taskCount: Int = 0, topTask: String? = nil) {
-        if !enabled {
-            cancelMorningMotivation()
-            return
-        }
-        
-        // Cancel existing before rescheduling
+        // Clear all variations
         cancelMorningMotivation()
         
+        if !enabled { return }
+        
         let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: time ?? Self.defaultMorningTime)
+        let minute = calendar.component(.minute, from: time ?? Self.defaultMorningTime)
         var dateComponents = DateComponents()
-        if let time = time {
-            dateComponents.hour = calendar.component(.hour, from: time)
-            dateComponents.minute = calendar.component(.minute, from: time)
-        } else {
-            dateComponents.hour = 7  // Default 7:30 AM
-            dateComponents.minute = 30
-        }
+        dateComponents.hour = hour
+        dateComponents.minute = minute
         
         // Use varied messages
         let message = NotificationMessages.random(from: NotificationMessages.morningMotivation)
         var body = message.body
             .replacingOccurrences(of: "{count}", with: "\(taskCount)")
-        if let task = topTask {
-            body = body.replacingOccurrences(of: "{task}", with: task)
-        } else {
-            body = body.replacingOccurrences(of: "{task}", with: "your goals")
-        }
+        body = body.replacingOccurrences(of: "{tasksList}", with: topTask ?? "your goals")
         
         let content = UNMutableNotificationContent()
         content.title = message.title
@@ -369,35 +370,53 @@ class NotificationManager: ObservableObject {
         }
     }
     
+    // Helper default time (since we need it in multiple places)
+    static var defaultMorningTime: Date {
+        var components = DateComponents()
+        components.hour = 7
+        components.minute = 30
+        return Calendar.current.date(from: components) ?? Date()
+    }
+
+    static var defaultAfternoonTime: Date {
+        var components = DateComponents()
+        components.hour = 14
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? Date()
+    }
+    
     func cancelMorningMotivation() {
+        // Cancel persistent daily if it exists from old version
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["morning-motivation-daily"])
+        // Cancel 7 day specific ones
+        let identifiers = (0..<7).map { "morning-motivation-\($0)" }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
         print("Cancelled morning motivation notifications")
     }
     
     // MARK: - Afternoon Reminder Notifications
     
     func scheduleAfternoonReminder(enabled: Bool, time: Date? = nil, remainingTaskCount: Int = 0) {
-        if !enabled {
-            cancelAfternoonReminder()
-            return
-        }
-        
-        // Cancel existing before rescheduling
+        // Clear all variations
         cancelAfternoonReminder()
         
+        if !enabled { return }
+        
         let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: time ?? Self.defaultAfternoonTime)
+        let minute = calendar.component(.minute, from: time ?? Self.defaultAfternoonTime)
         var dateComponents = DateComponents()
-        if let time = time {
-            dateComponents.hour = calendar.component(.hour, from: time)
-            dateComponents.minute = calendar.component(.minute, from: time)
-        } else {
-            dateComponents.hour = 14  // Default 2 PM
-            dateComponents.minute = 0
-        }
+        dateComponents.hour = hour
+        dateComponents.minute = minute
         
         // Use varied messages
         let message = NotificationMessages.random(from: NotificationMessages.afternoonReminder)
-        let body = message.body.replacingOccurrences(of: "{count}", with: "\(remainingTaskCount)")
+        let body = message.body
+            .replacingOccurrences(of: "{count}", with: "\(remainingTaskCount)")
+            .replacingOccurrences(
+                of: "{tasksList}",
+                with: remainingTaskCount == 0 ? "nothing — you're all caught up" : "open Clarity to see what's next"
+            )
         
         let content = UNMutableNotificationContent()
         content.title = message.title
@@ -423,6 +442,8 @@ class NotificationManager: ObservableObject {
 
     func cancelAfternoonReminder() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["afternoon-reminder-daily"])
+        let identifiers = (0..<7).map { "afternoon-reminder-\($0)" }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
         print("Cancelled afternoon reminder notifications")
     }
 
@@ -582,5 +603,18 @@ class NotificationManager: ObservableObject {
     func cancelAllNotifications() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         print("Cancelled all notifications")
+    }
+    
+    // MARK: - Data Management
+    
+    private var cachedTasks: [TaskItem] = []
+    
+    func updateTasks(_ tasks: [TaskItem]) {
+        self.cachedTasks = tasks
+        // Reschedule dynamic notifications if they are enabled in settings
+        // accessing settings directly might be circular, but we can rely on settings calling us
+        // or we can just update the cache and wait for next schedule call.
+        // Better: trigger a reschedule of currently enabled notifications?
+        // For now, we'll assume the caller (ClarityApp) will call initialize/reschedule after updating tasks.
     }
 }

@@ -57,7 +57,7 @@ struct FirstLaunchTutorial: View {
             pages[currentPage].gradient
                 .opacity(0.08)
                 .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.6), value: currentPage)
+                .animation(.easeInOut(duration: 0.8), value: currentPage)
             
             Color.clarityBackground
                 .opacity(0.95)
@@ -68,7 +68,7 @@ struct FirstLaunchTutorial: View {
                 HStack {
                     Spacer()
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                             dismiss()
                         }
                     } label: {
@@ -92,15 +92,15 @@ struct FirstLaunchTutorial: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.3), value: currentPage)
+                .animation(.interpolatingSpring(mass: 1.2, stiffness: 120, damping: 20, initialVelocity: 0), value: currentPage)
                 
                 // Custom page indicator
                 HStack(spacing: 8) {
                     ForEach(0..<pages.count, id: \.self) { index in
-                        Capsule()
+                    Capsule()
                             .fill(index == currentPage ? pages[currentPage].gradient : LinearGradient(colors: [.gray.opacity(0.3)], startPoint: .leading, endPoint: .trailing))
                             .frame(width: index == currentPage ? 24 : 8, height: 8)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentPage)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.75), value: currentPage)
                     }
                 }
                 .padding(.bottom, 24)
@@ -109,7 +109,7 @@ struct FirstLaunchTutorial: View {
                 HStack(spacing: 12) {
                     if currentPage > 0 {
                         Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.interpolatingSpring(mass: 1.2, stiffness: 120, damping: 20, initialVelocity: 0)) {
                                 currentPage -= 1
                             }
                         } label: {
@@ -130,7 +130,7 @@ struct FirstLaunchTutorial: View {
                     }
                     
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(.interpolatingSpring(mass: 1.2, stiffness: 120, damping: 20, initialVelocity: 0)) {
                             if currentPage < pages.count - 1 {
                                 currentPage += 1
                             } else {
@@ -250,13 +250,13 @@ struct TutorialPageView: View {
             Spacer()
         }
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+            withAnimation(.spring(response: 1.1, dampingFraction: 0.85).delay(0.25)) {
                 appeared = true
             }
         }
         .onChange(of: pageNumber) { _, _ in
             appeared = false
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+            withAnimation(.spring(response: 1.1, dampingFraction: 0.85).delay(0.3)) {
                 appeared = true
             }
         }

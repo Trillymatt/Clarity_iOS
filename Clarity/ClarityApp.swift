@@ -11,11 +11,16 @@ import UserNotifications
 
 @main
 struct ClarityApp: App {
+    
     var sharedModelContainer: ModelContainer = {
         let schema = ClarityModelContainer.schema
 
-        // Try persistent storage first
-        let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // Try persistent storage first.
+        // cloudKitDatabase MUST be .none: the app's CloudKit entitlement (used by
+        // CloudKitService for social features) otherwise makes SwiftData default to
+        // .automatic CloudKit mirroring, whose schema validation rejects our
+        // @Attribute(.unique) models and crashes every container init.
+        let persistentConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
 
         // Check if we need to reset due to schema changes
         let currentSchemaVersion = 7 // Budget now has ownerEmail (was global before)
@@ -32,7 +37,6 @@ struct ClarityApp: App {
             try? FileManager.default.removeItem(at: url.appendingPathExtension("wal"))
             
             // CRITICAL: Clear the session to match the database state
-            // This prevents UserDefaults from having an email while SwiftData has no profile
             AuthManager.shared.logout()
             
             UserDefaults.standard.set(currentSchemaVersion, forKey: "SchemaVersion")
@@ -64,7 +68,7 @@ struct ClarityApp: App {
                 print("🔄 Falling back to in-memory storage...")
                 
                 // Attempt 3: Fallback to in-memory storage (app will work but won't persist data)
-                let inMemoryConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                let inMemoryConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
                 do {
                     let container = try ModelContainer(for: schema, configurations: [inMemoryConfiguration])
                     print("⚠️ Using IN-MEMORY storage - data will not persist!")
@@ -78,6 +82,8 @@ struct ClarityApp: App {
         }
     }()
 
+    @Environment(\.scenePhase) private var scenePhase
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -85,10 +91,99 @@ struct ClarityApp: App {
                 .tint(Color.clarityBlue)
                 .onAppear {
                     cleanupOldTasks()
-                    initializeNotifications()
+                    updateNotifications()
+                }
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    if newPhase == .background {
+                        // Update notifications with latest data when leaving app
+                        updateNotifications()
+                    }
+                }
+                .onOpenURL { url in
+                    handleDeepLink(url)
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+    
+    private func handleDeepLink(_ url: URL) {
+        // Handle friend invite: 
+        // 1. Custom Scheme: clarity://add-friend?email=...
+        // 2. Web fallback (legacy): https://clarity-app.com/add-friend?email=...
+        
+        let isCustomScheme = url.scheme == "clarity" && url.host == "add-friend"
+        let isWebLink = (url.host == "clarity-app.com" || url.host == "www.clarity-app.com") && url.path == "/add-friend"
+        
+        if isCustomScheme || isWebLink,
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let email = components.queryItems?.first(where: { $0.name == "email" })?.value {
+            
+            // Post notification to open AddFriendSheet with pre-filled email
+            NotificationCenter.default.post(
+                name: NSNotification.Name("OpenAddFriendWithEmail"),
+                object: nil,
+                userInfo: ["email": email]
+            )
+            return
+        }
+        
+        // Handle task completion: clarity://task/complete/{taskId}
+        guard url.scheme == "clarity",
+              url.host == "task",
+              url.pathComponents.count >= 3,
+              url.pathComponents[1] == "complete" else {
+            return
+        }
+        
+        let taskIdString = url.pathComponents[2]
+        guard let taskId = UUID(uuidString: taskIdString) else { return }
+        
+        Task { @MainActor in
+            let context = ModelContext(sharedModelContainer)
+            let descriptor = FetchDescriptor<TaskItem>(
+                predicate: #Predicate { $0.id == taskId }
+            )
+            
+            if let tasks = try? context.fetch(descriptor), let task = tasks.first {
+                withAnimation {
+                    task.isCompleted = true
+                    task.completedDate = Date()
+                    task.isInProgress = false
+                    try? context.save()
+                    
+                    // Stop Live Activity
+                    if LiveActivityManager.shared.activeTaskId == taskIdString {
+                        LiveActivityManager.shared.stopTaskActivity()
+                    }
+                    
+                    // Update widgets
+                    let userEmail = task.ownerEmail
+                    if !userEmail.isEmpty {
+                        WidgetDataUpdater.updateWidgetData(context: context, userEmail: userEmail)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func updateNotifications() {
+        Task { @MainActor in
+            // Check permissions (don't request if not already determined, just check)
+            // Actually, requestAuthorization returns true if already authorized.
+            let granted = await NotificationManager.shared.requestAuthorization()
+            if granted {
+                // Fetch tasks for real-data notifications
+                let context = ModelContext(sharedModelContainer)
+                let descriptor = FetchDescriptor<TaskItem>()
+                if let tasks = try? context.fetch(descriptor) {
+                    NotificationManager.shared.updateTasks(tasks)
+                }
+                
+                // Initialize/Reschedule global notification settings
+                // This will trigger NotificationManager to reschedule with new data
+                NotificationSettings.shared.initialize()
+            }
+        }
     }
     
     private func cleanupOldTasks() {
@@ -130,17 +225,6 @@ struct ClarityApp: App {
                 }
             } catch {
                 print("Failed to cleanup: \(error)")
-            }
-        }
-    }
-    
-    private func initializeNotifications() {
-        Task { @MainActor in
-            // Request notification permissions
-            let granted = await NotificationManager.shared.requestAuthorization()
-            if granted {
-                // Initialize global notification settings (mood check-in, weekly review)
-                NotificationSettings.shared.initialize()
             }
         }
     }

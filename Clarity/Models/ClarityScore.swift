@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 // MARK: - Clarity Score Model
 // The core identity metric of the app - measures overall life awareness and alignment
@@ -101,6 +102,16 @@ final class ClarityScore {
         case .rebuilding: return "💜"
         }
     }
+    
+    /// Get state gradient
+    var gradient: LinearGradient {
+        switch state {
+        case .thriving: return .clarityThriving
+        case .growing: return .clarityGrowing
+        case .adjusting: return .clarityAdjusting
+        case .rebuilding: return .clarityRebuilding
+        }
+    }
 }
 
 // MARK: - Score State
@@ -172,7 +183,7 @@ class ClarityScoreCalculator {
         return min(100, todayScore + weekScore)
     }
     
-    /// Calculate habit score (0-100)
+    /// Calculate habit score (0-100) with partial credit
     static func calculateHabitScore(habits: [Habit], checkins: [HabitCheckin]) -> Double {
         guard !habits.isEmpty else { return 0 }
         
@@ -181,36 +192,85 @@ class ClarityScoreCalculator {
         
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: today)!
+
         
-        // Today's expected habits
-        let todayCheckins = checkins.filter { checkin in
-            guard let habitId = checkin.habit?.id else { return false }
-            return calendar.isDate(checkin.date, inSameDayAs: Date()) && activeHabits.contains(where: { $0.id == habitId })
-        }
+        // --- Calculate Today's Score (60% weight) ---
+        var totalDailyPotential = 0.0
+        var totalDailyEarned = 0.0
         
-        // Calculate today's completion (60% weight)
-        var todayScore: Double = 0
-        if !activeHabits.isEmpty {
-            let todayCompleted = todayCheckins.filter { $0.isCompleted }.count
-            todayScore = (Double(todayCompleted) / Double(activeHabits.count)) * 60
-        }
-        
-        // Calculate weekly adherence (40% weight)
-        var expectedWeeklyCheckins = 0
         for habit in activeHabits {
-            let frequency = habit.daysOfWeek.isEmpty ? 7 : habit.daysOfWeek.count
-            expectedWeeklyCheckins += frequency
+            totalDailyPotential += 1.0
+            
+            // Find today's checkin for this habit
+            if let checkin = checkins.first(where: {
+                guard let h = $0.habit else { return false }
+                return h.id == habit.id && calendar.isDate($0.date, inSameDayAs: today)
+            }) {
+                // Calculate partial credit
+                let goal = Double(habit.goalPerDay ?? 1)
+                let value = Double(checkin.value)
+                // Cap at 1.0 (100%) so exceeding goal doesn't give extra credit preventing skew
+                let completion = min(value / max(goal, 1.0), 1.0)
+                
+                // If it's explicitly marked completed, ensure full credit (fallback)
+                if checkin.isCompleted {
+                    totalDailyEarned += 1.0
+                } else {
+                    totalDailyEarned += completion
+                }
+            }
         }
         
-        var weekScore: Double = 0
-        if expectedWeeklyCheckins > 0 {
-            let weekCheckins = checkins.filter { checkin in
-                guard let habitId = checkin.habit?.id else { return false }
-                return checkin.date >= weekStart && checkin.isCompleted && activeHabits.contains(where: { $0.id == habitId })
+        let todayScore = totalDailyPotential > 0 ? (totalDailyEarned / totalDailyPotential) * 60.0 : 0.0
+        
+        // --- Calculate Weekly Adherence (40% weight) ---
+        var totalWeeklyPotential = 0.0
+        var totalWeeklyEarned = 0.0
+        
+        // Create a set of days to check (last 6 days + today)
+        var checkDays: [Date] = []
+        for i in 0...6 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
+                checkDays.append(date)
             }
-            weekScore = (Double(weekCheckins.count) / Double(expectedWeeklyCheckins)) * 40
         }
+        
+        for habit in activeHabits {
+            // Determine which days this habit is scheduled for
+            let scheduledDays = habit.daysOfWeek // [1, 2...] Sunday=1
+            let isDaily = scheduledDays.isEmpty // Empty means every day
+            
+            for date in checkDays {
+                // Check if habit is scheduled for this specific date
+                // Swift's weekday is 1...7 (Sun...Sat)
+                let weekday = calendar.component(.weekday, from: date)
+                
+                // Verify if today is a scheduled day for this habit
+                let isScheduled = isDaily || scheduledDays.contains(weekday)
+                
+                if isScheduled {
+                    totalWeeklyPotential += 1.0
+                    
+                    // Find checkin for this date
+                    if let checkin = checkins.first(where: {
+                        guard let h = $0.habit else { return false }
+                        return h.id == habit.id && calendar.isDate($0.date, inSameDayAs: date)
+                    }) {
+                        let goal = Double(habit.goalPerDay ?? 1)
+                        let value = Double(checkin.value)
+                        let completion = min(value / max(goal, 1.0), 1.0)
+                        
+                        if checkin.isCompleted {
+                            totalWeeklyEarned += 1.0
+                        } else {
+                            totalWeeklyEarned += completion
+                        }
+                    }
+                }
+            }
+        }
+        
+        let weekScore = totalWeeklyPotential > 0 ? (totalWeeklyEarned / totalWeeklyPotential) * 40.0 : 0.0
         
         return min(100, todayScore + weekScore)
     }

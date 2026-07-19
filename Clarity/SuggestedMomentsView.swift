@@ -302,7 +302,8 @@ struct QuickAddMomentSheet: View {
             title: title,
             note: nil,
             moodScore: Double(moodScore - 1) / 4.0,
-            type: preselectedType
+            type: preselectedType,
+            imagesData: nil
         )
         context.insert(moment)
         try? context.save()

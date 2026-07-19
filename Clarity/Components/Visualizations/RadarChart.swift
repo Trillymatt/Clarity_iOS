@@ -64,9 +64,9 @@ struct RadarChart: View {
             VStack {
                 Text(labels[safe: i] ?? "")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
-                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             }
             .position(point)
         }

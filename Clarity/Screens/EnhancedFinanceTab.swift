@@ -69,14 +69,11 @@ struct EnhancedFinanceTab: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 32) {
+                        // Spacer for nav bar
+                        Color.clear.frame(height: 90)
                         // Header & Score
                         HStack(spacing: 20) {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(Date(), format: .dateTime.weekday(.wide).day().month())
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
-                                
                                 Text("Finance")
                                     .font(.system(size: 34, weight: .bold, design: .rounded))
                                     .foregroundStyle(.primary)
@@ -179,8 +176,10 @@ struct EnhancedFinanceTab: View {
                                 prefillNote: $prefillNote
                             )
                             .padding(.horizontal, 12)
-                            
-                            // Recent Transactions
+                        }
+                        
+                        // Recent Transactions
+                        if !transactions.isEmpty {
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Recent Activity")
                                     .font(.headline)
@@ -333,55 +332,39 @@ struct WeeklyAwarenessCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Weekly Awareness")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text("\(transactionCount) transactions tracked")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .stroke(Color.clarityPurple.opacity(0.1), lineWidth: 4)
+                Circle()
+                    .trim(from: 0, to: awarenessPercentage)
+                    .stroke(Color.clarityPurple, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
                 
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("$\(totalSpent, specifier: "%.2f")")
-                        .font(.title3.bold())
-                        .foregroundStyle(Color.clarityPurple)
-                    Text("Total")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "eye.fill")
+                    .font(.caption2.bold())
+                    .foregroundStyle(Color.clarityPurple)
+            }
+            .frame(width: 32, height: 32)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weekly Awareness")
+                    .font(.subheadline.bold())
+                Text("\(transactionCount) transactions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             
-            // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.clarityPurple.opacity(0.1))
-                        .frame(height: 12)
-                    
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(LinearGradient(colors: [.clarityPurple, .clarityBlue], startPoint: .leading, endPoint: .trailing))
-                        .frame(width: geo.size.width * awarenessPercentage, height: 12)
-                }
-            }
-            .frame(height: 12)
+            Spacer()
             
-            Text("\(Int(awarenessPercentage * 100))% awareness goal")
-                .font(.caption.bold())
+            Text("$\(totalSpent, specifier: "%.2f")")
+                .font(.headline)
                 .foregroundStyle(Color.clarityPurple)
         }
-        .padding(20)
+        .padding(12)
         .background(Color.clarityCard)
-        .cornerRadius(20)
-        .shadow(color: Color.clarityPurple.opacity(0.1), radius: 10, x: 0, y: 5)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.clarityPurple.opacity(0.3), lineWidth: 1)
-        )
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
     }
 }
 
@@ -468,7 +451,7 @@ struct EnhancedTransactionRow: View {
                         .font(.body.weight(.medium))
                         .foregroundStyle(.primary)
                     
-                    Text(transaction.date, style: .relative)
+                    Text(transaction.date, format: .dateTime.hour().minute())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

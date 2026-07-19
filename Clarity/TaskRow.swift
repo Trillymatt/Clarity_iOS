@@ -6,6 +6,7 @@ struct TaskRow: View {
     let task: TaskItem
     
     @State private var showEditSheet = false
+    @State private var showShareSheet = false
     
     var body: some View {
         HStack {
@@ -18,15 +19,28 @@ struct TaskRow: View {
             
             // Task Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(task.title)
-                    .font(.headline)
-                    .strikethrough(task.isCompleted)
-                    .foregroundStyle(textColor)
+                HStack(spacing: 6) {
+                    Text(task.title)
+                        .font(.headline)
+                        .strikethrough(task.isCompleted)
+                        .foregroundStyle(textColor)
+                    
+                    // Past Due badge
+                    if task.isOverdue {
+                        Text("Past Due")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .cornerRadius(4)
+                    }
+                }
                 
                 if let due = task.dueDate {
                     Text(due, style: .date)
                         .font(.caption)
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(task.isOverdue ? Color.red : Color.secondary)
                 }
             }
             .contentShape(Rectangle())
@@ -35,6 +49,22 @@ struct TaskRow: View {
             }
             
             Spacer()
+            
+            // Share button
+            Menu {
+                Button {
+                    showShareSheet = true
+                } label: {
+                    Label("Share with Friend", systemImage: "person.badge.plus")
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.caption)
+                    .foregroundStyle(Color.clarityBlue)
+                    .padding(8)
+                    .background(Color.clarityBlue.opacity(0.1))
+                    .clipShape(Circle())
+            }
             
             // Today Toggle
             Button(action: toggleToday) {
@@ -46,6 +76,13 @@ struct TaskRow: View {
         .sheet(isPresented: $showEditSheet) {
             EditTaskSheet(task: task)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showShareSheet) {
+            FriendPickerSheet(
+                itemType: "task",
+                itemId: task.id.uuidString,
+                itemTitle: task.title
+            )
         }
     }
     
@@ -76,9 +113,27 @@ struct TaskRow: View {
             task.isCompleted.toggle()
             if task.isCompleted {
                 task.completedDate = Date()
+                task.isInProgress = false
                 // Cancel notification when task is completed
                 Task { @MainActor in
                     NotificationManager.shared.cancelTaskDeadline(taskId: task.id)
+                }
+                // Stop Live Activity when task is completed
+                Task { @MainActor in
+                    if LiveActivityManager.shared.activeTaskId == task.id.uuidString {
+                        LiveActivityManager.shared.stopTaskActivity()
+                    }
+                }
+                
+                // DATA SYNC: Post to Friends Feed (if sharing is enabled)
+                if UserDefaults.standard.bool(forKey: "shareActivityWithFriends") {
+                    Task {
+                        await CloudKitService.shared.postActivity(
+                            type: "task",
+                            title: task.title,
+                            iconName: "checkmark.circle.fill"
+                        )
+                    }
                 }
             } else {
                 task.completedDate = nil
