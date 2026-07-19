@@ -204,7 +204,12 @@ class LifePulseDataGenerator {
         var dataPoints: [LifePulseDataPoint] = []
         var hasData = false
 
-        let offsets = stride(from: days - 1, through: 0, by: -strideBy)
+        // Built forward from 0 (today) and reversed, rather than striding
+        // backward from `days - 1`, so today is always included even when
+        // `days - 1` isn't an exact multiple of `strideBy` (e.g. the Year
+        // range's 364/7 — 363 % 7 != 0 would otherwise skip offset 0).
+        let offsetCount = (days - 1) / strideBy + 1
+        let offsets = (0..<offsetCount).map { $0 * strideBy }.reversed()
         for dayOffset in offsets {
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
             let dayStart = calendar.startOfDay(for: date)
